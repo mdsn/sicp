@@ -287,42 +287,50 @@
          (map test (cdr (range n)))))
 
 ; Some Carmichael numbers:
-; "1.2.6 testing for primality.rkt"> (foolable-test 561)
-; #t
-; "1.2.6 testing for primality.rkt"> (foolable-test 1105)
-; #t
-; "1.2.6 testing for primality.rkt"> (foolable-test 1729)
-; #t
-; "1.2.6 testing for primality.rkt"> (foolable-test 2465)
-; #t
-; "1.2.6 testing for primality.rkt"> (foolable-test 2821)
-; #t
-; "1.2.6 testing for primality.rkt"> (foolable-test 6601)
-; #t
+#| (foolable-test 561) ; #t |#
+#| (foolable-test 1105) ; #t |#
+#| (foolable-test 1729) ; #t |#
+#| (foolable-test 2465) ; #t |#
+#| (foolable-test 2821) ; #t |#
+#| (foolable-test 6601) ; #t |#
 
 ; exercise 1.28 / the Miller-Rabin test
 
-; non-trivial square root of 1 modulo n: a number t != 1 y t != n-1,
+; non-trivial square root of 1 modulo n: a number t != 1 and t != n-1,
 ; such that t^2 === 1 mod n.
 
-(define (miller-rabin-expmod base exp m)
+(define (rem-square-check x m)
+  (if (and (not (or (= x 1)
+                    (= x (- m 1))))
+           (= (remainder (square x) m) 1))
+    0
+    (remainder (square x) m)))
 
-  (define (check x)
-    (if (and (not (or (= x 1)
-                      (= x (dec m))))
-             (= (remainder (square x) m) 1))
-        0
-        (remainder (square x) m)))
-
-
+(define (expmod-check base exp m)
   (cond ((= exp 0) 1)
-        ((even? exp)
-         (check (miller-rabin-expmod base (/ exp 2) m)))
-        (else
-         (remainder (* base (miller-rabin-expmod base (dec exp) m))
+        ((even? exp) (rem-square-check (expmod-check base (/ exp 2) m) m))
+        (else 
+          (remainder (* base (expmod-check base (dec exp) m)) 
                     m))))
 
 (define (miller-rabin-test n)
   (define (go b)
-    (= (miller-rabin-expmod b (dec n) n) 1))
+    (= (expmod-check b (dec n) n) 1))
   (go (+ 1 (random (dec n)))))
+
+(define (miller-rabin n)
+  (define (run times)
+    (cond ((= times 0) true)
+          ((miller-rabin-test n) (run (dec times)))
+          (else false)))
+  (run 5))
+
+
+; (miller-rabin 10) ; #f
+; (miller-rabin 11) ; #t
+; (miller-rabin 29) ; #t
+; (miller-rabin 41) ; #t
+; (miller-rabin 561) ; #f
+; (miller-rabin 1105) ; #f
+; (miller-rabin 2000) ; #f
+
