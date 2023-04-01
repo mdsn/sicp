@@ -61,3 +61,43 @@
   (fixed-point (lambda (y) (average y (/ x y)))
                1.0))
 (sqrt 4) ; 2.000000000000002
+
+; 1.35 phi is the fixed point of x -> 1 + 1/x.
+;
+; From section 1.2.2, phi = (1 + sqrt(5))/2, and phi^2 = phi + 1.
+; Let f(x) = 1 + 1/x. Then f (phi) = 1 + 1/phi = (phi+1)/phi = phi^2/phi = phi.
+
+(define (phi)
+  (fixed-point (lambda (x) (+ 1 (/ 1 x)))
+               1.0))
+
+(phi) ; 1.6180327868852458
+
+; 1.36 find a solution for x^x = 1000 by finding a
+; fixed point of x -> log 1000 / log x
+
+(define (fixed-point-dbg f first-guess)
+  (define (close-enough? v1 v2)
+    (< (abs (- v1 v2))
+       tolerance))
+  (define (try guess i)
+    (display i)
+    (display ": ")
+    (display guess)
+    (newline)
+    (let ((next (f guess)))
+      (if (close-enough? guess next)
+        next
+        (try next (+ i 1)))))
+  (try first-guess 1))
+
+(define (x-over-x value)
+  (fixed-point-dbg (lambda (x) (/ (log value) (log x)))
+                   2.0))
+
+(define (x-over-x-damp value)
+  (fixed-point-dbg (lambda (x) (average x (/ (log value) (log x))))
+                   2.0))
+
+(x-over-x 1000) ; 34 steps
+(x-over-x-damp 1000) ; 9 steps
