@@ -101,3 +101,82 @@
 
 (x-over-x 1000) ; 34 steps
 (x-over-x-damp 1000) ; 9 steps
+
+; 1.37 Continued fractions
+;
+; f = n_1 / (d_1 + n_2 / (...))
+
+(define (cont-frac n d k)
+  (define (cf i)
+    (if (= i k)
+      0
+      (/ (n i) (+ (d i) (cf (+ i 1))))))
+  (cf 0))
+
+(define (cont-frac-iter n d k op)
+  (define (f i x)
+    (/ (n i)
+       (op (d i) x)))
+  (define (iter i result)
+    (if (= i 0)
+      (f i result)
+      (iter (- i 1) (f i result))))
+  (iter k 0))
+
+(define (one-over-phi k)
+  (cont-frac-iter (lambda (i) 1.0) 
+                  (lambda (i) 1.0) 
+                  k
+                  +))
+
+(one-over-phi 5) ; 0.6000000000000001
+(one-over-phi 10) ; 0.6181818181818182
+(one-over-phi 50) ; 0.6180339887498948
+(one-over-phi 100) ; 0.6180339887498948
+
+; 1.38 de fractionibus continuis
+;
+; e - 2 = cont-frac,
+; n_i = 1
+; d_i = 1, 2, 1, 1, 4, 1, 1, 6 ...
+; i <-  1, 4, 7, 10 ...
+; i-1   0  3  6  9
+; i-1/3 0  1  2  3
+; 2i+2  2  4  6  8
+
+(define (e-minus-two)
+  ; The d-indices that are different than 1
+  (define (special? n) 
+    (= 0 (remainder (- n 1) 3)))
+
+  (define (d i) 
+    (if (special? i) 
+      (+ 2 (* 2 (/ (- i 1) 3))) 
+      1))
+
+  (cont-frac-iter (lambda (i) 1.0)
+                  d
+                  10
+                  +))
+
+(e-minus-two)  ; 0.7182818352059925
+
+(define (e) (+ 2 (e-minus-two)))
+
+(e) ; 2.7182818352059925
+
+; 1.39 Continued fraction approximation to the tangent function
+;
+; tan x = x / (1 - (x^2 / (3 - (x^2 / 5 - (...))))),
+; with x in radians.
+
+(define (tan-cf x)
+  (define (d i) (+ (* 2 i) 1))
+  (define (n i) (if (= i 0)
+                  x
+                  (* x x)))
+  (cont-frac-iter n d 10 -))
+
+(tan-cf 0) ; 0
+(tan-cf 3.14159) ; Should be 0 :S
+(tan-cf (/ 3.14159 4)) ; 0.9999986732059835
