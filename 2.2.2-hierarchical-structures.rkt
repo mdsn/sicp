@@ -128,3 +128,51 @@
 ; all we need to change is the definitions of `right-branch` and `branch-structure`
 ; from `cadr` to `cdr`. The reason being that for a list, cdr returns a singleton list
 ; whereas for a pair, it returns the value itself already "unwrapped".
+
+; exercise 2.30
+(define (square-tree-direct tree)
+  (cond ((null? tree) '())
+		((not (pair? tree)) (* tree tree))
+		(else
+		  (cons (square-tree-direct (car tree))
+				(square-tree-direct (cdr tree))))))
+
+(define tree (list 1
+				   (list 2 (list 3 4) 5)
+				   (list 6 7)))
+
+(square-tree-direct tree) ; '(1 (4 (9 16) 25) (36 49))
+
+(define (square-with-map tree)
+  (map (lambda (sub-tree)
+		 (if (pair? sub-tree)
+		   (square-with-map sub-tree)
+		   (* sub-tree sub-tree)))
+	   tree))
+
+(square-with-map tree) ; '(1 (4 (9 16) 25) (36 49))
+
+; exercise 2.31
+(define (tree-map f tree)
+  (map (lambda (sub-tree)
+		 (if (pair? sub-tree)
+		   (tree-map f sub-tree)
+		   (f sub-tree)))
+	   tree))
+
+(define (square-tree tree)
+  (tree-map (lambda (x) (* x x)) tree))
+
+(square-tree tree) ; '(1 (4 (9 16) 25) (36 49))
+
+; exercise 2.32
+(define (subsets s)
+  (if (null? s)
+	(list '())
+	(let ((rest (subsets (cdr s))))
+	  (append rest 
+			  (map (lambda (x)
+					 (cons (car s) x))
+				   rest)))))
+
+(subsets (list 1 2 3)) ; '(() (3) (2) (2 3) (1) (1 3) (1 2) (1 2 3))
