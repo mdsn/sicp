@@ -366,3 +366,25 @@
 ;   ((8 1) (4 2) (1 3) (3 4) (6 5) (2 6) (7 7) (5 8)))
 
 (length (queens 8)) ; 92 :)
+
+; exercise 2.43
+; Slow version:
+; (flatmap
+;   (lambda (new-row)
+; 	  (map (lambda (rest-of-queens)
+; 		     (adjoin-position
+; 			   new-row k rest-of-queens))
+; 		   (queen-cols (- k 1))))
+;   (enumerate 1 board-size))
+;
+; This version runs slower because it solves (queen-cols (- k 1)) over
+; and over again at the same column for each of the new-row yielded by
+; (enumerate 1 board-size), whereas the original version runs it once
+; for each column and reuses the computed results for each row.
+;
+; In the original version there are board-size recursive calls to
+; queen-cols, each of which perform board-size calls to adjoin-position.
+;
+; In the slow version, the call to (queen-cols board-size) results in
+; board-size calls to (queen-cols (- board-size 1)), each of which have
+; the same result. Say that n = board-size.
