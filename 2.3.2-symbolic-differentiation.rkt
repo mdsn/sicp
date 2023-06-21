@@ -116,4 +116,64 @@
 (deriv '(+ x x x x x y (** x 3)) 'x) ; '(+ 1 (+ 1 (+ 1 (+ 1 (+ 1 (* 3 (** x 2)))))))
 (deriv '(* x y (+ x 3)) 'x) ; '(+ (* x y) (* y (+ x 3)))
 
+; exercise 2.58
+(define (binop? op exp)
+  (and (pair? exp) (eq? (cadr exp) op)))
 
+(define (sum? exp) (binop? '+ exp))
+(define (product? exp) (binop? '* exp))
+(define (exponentiation? exp) (binop? '** exp))
+
+(sum? '(x + 1)) ; #t
+(sum? '(2 + 2)) ; #t
+(sum? '(+ 1 2)) ; #f
+(sum? '(2 + (2 + 2))) ; #t
+(product? '(x * 3)) ; #t
+(exponentiation? '(x ** 2)) ; #t
+
+(define (addend exp) (car exp))
+(define (augend exp) (caddr exp))
+(define (multiplier exp) (car exp))
+(define (multiplicand exp) (caddr exp))
+(define (base exp) (car exp))
+(define (exponent exp) (caddr exp))
+
+(addend '(x + 1)) ; 'x
+(augend '(x + 1)) ; 1
+(augend '(x + (y + 2))) ; '(y + 2)
+
+(define (make-sum x y)
+  (cond ((=number? x 0) y)
+		((=number? y 0) x)
+		((and (number? x) (number? y))
+		 (+ x y))
+		(else (list x '+ y))))
+
+(make-sum 2 2) ; 4
+(make-sum 'x 1) ; '(x + 1)
+(make-sum 'x 0) ; 'x
+
+(define (make-product x y)
+  (cond ((or (=number? x 0)
+			(=number? y 0))
+		 0)
+		((=number? x 1) y)
+		((=number? y 1) x)
+		((and (number? x) (number? y))
+		 (* x y))
+		(else (list x '* y))))
+
+(make-product 2 2) ; 4
+(make-product 3 'x) ; '(3 * x)
+(make-product 2 '(x + 1)) ; '(2 * (x + 1))
+(make-product 0 'x) ; 0
+
+(define (make-exponentiation x n)
+  (cond ((=number? n 0) 1)
+		((=number? n 1) x)
+		(else (list x '** n))))
+
+(make-exponentiation 'x 2) ; '(x ** 2)
+
+(deriv '(((x ** 3) + (3 * x)) + x) 'x) ; '(((3 * (x ** 2)) + 3) + 1)
+(deriv '((x * y) * (x + 3)) 'x) ; '((x * y) + (y * (x + 3)))
