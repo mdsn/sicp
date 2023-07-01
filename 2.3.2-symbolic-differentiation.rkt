@@ -1,4 +1,4 @@
-#lang scheme
+#lang sicp
 
 (define (deriv exp var)
   (cond ((number? exp) 0)
@@ -116,7 +116,7 @@
 (deriv '(+ x x x x x y (** x 3)) 'x) ; '(+ 1 (+ 1 (+ 1 (+ 1 (+ 1 (* 3 (** x 2)))))))
 (deriv '(* x y (+ x 3)) 'x) ; '(+ (* x y) (* y (+ x 3)))
 
-; exercise 2.58
+; exercise 2.58-1
 (define (binop? op exp)
   (and (pair? exp) (eq? (cadr exp) op)))
 
@@ -176,4 +176,70 @@
 (make-exponentiation 'x 2) ; '(x ** 2)
 
 (deriv '(((x ** 3) + (3 * x)) + x) 'x) ; '(((3 * (x ** 2)) + 3) + 1)
+(deriv '((x * y) * (x + 3)) 'x) ; '((x * y) + (y * (x + 3)))
+
+; exercise 2.58-2
+;
+; (x + 3 * (x + y + 2))
+
+(define (sum? exp)
+  (and (pair? exp) (memq '+ exp)))
+
+(sum? '(x + 1)) ; '(+ 1)
+(sum? '(3 * x)) ; #f
+(sum? '(3 * (x + 1))) ; #f
+
+(define (take-while p xs)
+  (cond ((null? xs) '())
+		((p (car xs))
+		 (cons (car xs) (take-while p (cdr xs))))
+		(else '())))
+
+(define (before-token t exp)
+  (take-while
+	(lambda (token) (not (eq? t token)))
+	exp))
+
+(define (unwrap-one exp)
+  (if (= 1 (length exp))
+	(car exp)
+	exp))
+
+(unwrap-one '(3)) ; 3
+(unwrap-one '(x)) ; 'x
+(unwrap-one '(x + 2)) ; '(x + 2)
+
+(define (addend exp) 
+  (unwrap-one (before-token '+ exp)))
+
+(define (augend exp)
+  (unwrap-one (cdr (memq '+ exp))))
+
+(addend '(x + 3 * (x + y + 2))) ; 'x
+(augend '(x + 3 * (x + y + 2))) ; '(3 * (x + y + 2))
+
+(addend '(3 * x ** 2 + x + 1)) ; '(3 * x ** 2)
+(augend '(3 * x ** 2 + x + 1)) ; '(x + 1)
+
+(define (product? exp)
+  (and (pair? exp) (memq '* exp)))
+
+(product? '(x + 1)) ; #f
+(product? '(3 * (x + y + 2))) ; '(* (x + y + 2))
+
+(define (multiplier exp)
+  (unwrap-one (before-token '* exp)))
+
+(define (multiplicand exp)
+  (unwrap-one (cdr (memq '* exp))))
+
+(multiplier '(3 * (x + y + 2))) ; 3
+(multiplicand '(3 * (x + y + 2))) ; '((x + y + 2))
+
+(multiplier '(3 * x * y)) ; '(3)
+(multiplicand '(3 * x * y)) ; '(x * y)
+
+(deriv '(3 * x ** 2 + x + 1) 'x) ; '((3 * (2 * x)) + 1)
+(deriv '(3 * (x + y + 1)) 'x) ; 3
+(deriv '(x + y + 1) 'x) ; 1
 (deriv '((x * y) * (x + 3)) 'x) ; '((x * y) + (y * (x + 3)))
