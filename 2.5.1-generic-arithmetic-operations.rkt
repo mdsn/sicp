@@ -37,6 +37,8 @@
 (define (sub x y) (apply-generic 'sub x y))
 (define (mul x y) (apply-generic 'mul x y))
 (define (div x y) (apply-generic 'div x y))
+(define (equ x y) (apply-generic 'equ x y))
+(define (=zero? x) (apply-generic 'zero x))
 
 (define (install-scheme-number-package)
   (define (tag x)
@@ -49,12 +51,18 @@
        (lambda (x y) (tag (* x y))))
   (put 'div '(scheme-number scheme-number)
        (lambda (x y) (tag (/ x y))))
+  (put 'equ '(scheme-number scheme-number)
+       (lambda (x y) (= x y)))
+  (put 'zero '(scheme-number)
+       (lambda (x) (= 0 x)))
   (put 'make 'scheme-number
        (lambda (x) (tag x)))
   'done)
 
 (define (make-scheme-number n)
   ((get 'make 'scheme-number) n))
+
+(make-scheme-number 3) ; '(scheme-number . 3)
 
 (define (install-rational-package)
   (define (numer x) (car x))
@@ -85,6 +93,13 @@
        (lambda (x y) (tag (mul-rat x y))))
   (put 'div '(rational rational)
        (lambda (x y) (tag (div-rat x y))))
+  (put 'equ '(rational rational)
+       (lambda (x y)
+         (and (= (numer x) (numer y))
+              (= (denom x) (denom y)))))
+  (put 'zero '(rational)
+       (lambda (x)
+         (= 0 (numer x))))
   (put 'make 'rational
        (lambda (n d) (tag (make-rat n d))))
   'done)
@@ -173,6 +188,14 @@
        (lambda (z1 z2) (tag (mul-complex z1 z2))))
   (put 'div '(complex complex)
        (lambda (z1 z2) (tag (div-complex z1 z2))))
+  (put 'equ '(complex complex)
+       (lambda (z1 z2)
+         (and (= (real-part z1) (real-part z2))
+              (= (imag-part z1) (imag-part z2)))))
+  (put 'zero '(complex)
+       (lambda (z)
+         (and (= 0 (imag-part z))
+              (= 0 (real-part z)))))
   (put 'make-from-real-imag 'complex
        (lambda (x y) (tag (make-from-real-imag x y))))
   (put 'make-from-mag-ang 'complex
@@ -239,3 +262,45 @@
 ;                (square (imag-part z)))))
 ; -> real-part (rectangular package) = car z
 ; -> imag-part (rectangular package) = cdr z
+
+; exercise 2.78
+(define (attach-tag type-tag contents)
+  (if (number? contents)
+    contents
+    (cons type-tag contents)))
+
+(define (type-tag datum)
+  (cond ((number? datum) 'scheme-number)
+        ((pair? datum) (car datum))
+        (else (error "Bad tagged datum -- TYPE-TAG" datum))))
+
+(define (contents datum)
+  (cond ((number? datum) datum)
+        ((pair? datum) (cdr datum))
+        (else (error "Bad tagged datum -- CONTENTS" datum))))
+
+(make-scheme-number 3) ; 3
+(add (make-scheme-number 3) (make-scheme-number 2)) ; 5
+
+; exercise 2.79
+(equ (make-scheme-number 3)
+     (sub (make-scheme-number 5) (make-scheme-number 2))) ; #t
+
+(equ (make-rational 10 6) (make-rational 5 3)) ; #t
+
+(define z1 (make-complex-from-real-imag 3 2))
+(define z2 (make-complex-from-mag-ang
+             (magnitude z1)
+             (angle z1)))
+
+(real-part z1) ; 3
+(imag-part z1) ; 2
+(real-part z2) ; 3.0
+(imag-part z2) ; 1.9999999999999996
+
+(equ z1 z2) ; #f >_>
+
+; exercise 2.80
+(=zero? (make-scheme-number 0)) ; #t
+(=zero? (make-rational 0 3)) ; #t
+(=zero? (make-complex-from-real-imag 0 0)) ; #t
