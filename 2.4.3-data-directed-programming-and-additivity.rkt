@@ -230,10 +230,27 @@
 (angle z2) ; 0.58
 
 ; exercise 2.76
-; When dispatching on type, if a new type needs to be added that implements the operations, then each individual operation needs to be modified to do the explicit checking for the type tag and to dispatch to the particular function. If a new operation needs to be added to the existing types, then once it is implemented for each specific type, an individual generic function needs to be created to dispatch. The rest of the operations need not be modified.
+; When dispatching on type, if a new type needs to be added that implements the
+; operations, then each individual operation needs to be modified to do the
+; explicit checking for the type tag and to dispatch to the particular function.
+; If a new operation needs to be added to the existing types, then once it is
+; implemented for each specific type, an individual generic function needs to be
+; created to dispatch. The rest of the operations need not be modified.
 ;
-; When using the data-directed methodology, if a new type needs to be added then a new "column" is added to the table of operations and types. Each operation is implemented inside the new package, these are then installed and automatically available. There is no need to modify any of the existing types or their implementation. On the other hand, if a new operation needs to be added to the existing types, each individual package needs to be extended with the implementation, and its public interface extended.
+; When using the data-directed methodology, if a new type needs to be added
+; then a new "column" is added to the table of operations and types. Each
+; operation is implemented inside the new package, these are then installed and
+; automatically available. There is no need to modify any of the existing types
+; or their implementation. On the other hand, if a new operation needs to be
+; added to the existing types, each individual package needs to be extended with
+; the implementation, and its public interface extended.
 ;
-; When using message passing, if a new type needs to be added, a new constructor needs to be added that returns a dispatching procedure implementing each of the datatype's methods. If a new operation needs to be added, each of the existing constructors needs to be modified to implement it. In this sense, there is not much difference with the data-directed methodology.
+; When using message passing, if a new type needs to be added, a new
+; constructor needs to be added that returns a dispatching procedure implementing
+; each of the datatype's methods. If a new operation needs to be added, each of
+; the existing constructors needs to be modified to implement it. In this sense,
+; there is not much difference with the data-directed methodology.
 ;
-; For a system where new types need to be added it is better to use data-directed programming or message passing. In a system where new operations need to be added, it may be better to use explicit dispatch.
+; For a system where new types need to be added it is better to use
+; data-directed programming or message passing. In a system where new operations
+; need to be added, it may be better to use explicit dispatch.
