@@ -77,6 +77,8 @@
        (lambda (x) (= 0 x)))
   (put 'make 'scheme-number
        (lambda (x) (tag x)))
+  (put 'raise 'scheme-number
+       (lambda (x) (make-rational x 1)))
   'done)
 
 (define (install-rational-package)
@@ -117,6 +119,8 @@
          (= 0 (numer x))))
   (put 'make 'rational
        (lambda (n d) (tag (make-rat n d))))
+  (put 'raise 'rational
+       (lambda (x) (make-complex-from-real-imag x 0)))
   'done)
 
 (define (install-rectangular-package)
@@ -521,4 +525,11 @@
        (make-complex-from-real-imag 1 3)
        (make-scheme-number 1.5)
        (make-complex-from-real-imag 0 -1)
-       (make-scheme-number -3)) ; '(complex rectangular 2.5 . 4) :)
+       (make-scheme-number -3))
+; '(complex rectangular 2.5 . 4) :)
+
+; exercise 2.83
+(define (raise x) ((get 'raise (type-tag x)) x))
+
+(raise (make-scheme-number 3)) ; '(rational 3 . 1)
+(raise (make-rational 1 3)) ; '(complex rectangular (rational 1 . 3) . 0)
