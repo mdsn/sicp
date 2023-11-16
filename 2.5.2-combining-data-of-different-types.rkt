@@ -245,9 +245,10 @@
 (apply-generic 'add (make-scheme-number 1) (make-scheme-number 2)) ; 3
 (apply-generic 'add (make-rational 2 3) (make-rational 2 3)) ; '(rational 4 . 3)
 
-; apply-generic works correctly as is. There is no need to avoid coercing when the types are the same
-; because we get the base operation from the type's package which is then applied. Only by not finding
-; an appropriate procedure do we try to find a coercion between the types.
+; apply-generic works correctly as is. There is no need to avoid coercing when
+; the types are the same because we get the base operation from the type's
+; package which is then applied. Only by not finding an appropriate procedure
+; do we try to find a coercion between the types.
 
 (define (scheme-number->scheme-number n) n)
 (define (complex->complex z) z)
@@ -260,12 +261,264 @@
 (exp (make-scheme-number 2) (make-scheme-number 3)) ; 8
 
 ; (exp (make-complex-from-real-imag 1 2) (make-complex-from-real-imag 2 3))
-; By adding the coercion complex->complex, when we fail to find an 'exp procedure for types 'complex, we always
-; find a coercion and recursively call (apply-generic 'exp (complex->complex z1) z2). This is just the same call
+; By adding the coercion complex->complex, when we fail to find an 'exp
+; procedure for types 'complex, we always find a coercion and recursively call
+; (apply-generic 'exp (complex->complex z1) z2). This is just the same call
 ; with the same effect, thus we never return from it.
 
-; After adding a check for equal types before attempting coercion (because we failed to find a base implementation
-; in the type's package):
+; After adding a check for equal types before attempting coercion (because we
+; failed to find a base implementation in the type's package):
 (exp (make-complex-from-real-imag 1 2)
-     (make-complex-from-real-imag 2 3)) ; no method for these types '(exp (complex complex))
+     (make-complex-from-real-imag 2 3))
+; no method for these types '(exp (complex complex))
 
+; exercise 2.82
+
+; To implement the strategy proposed in the book we need a procedure to take
+; each element of a list out of it, to try and raise the rest of the elements
+; to its type:
+;
+; '(1 2 3 4 5)
+; ->
+;   (1 . 2 3 4 5)
+;   (2 . 1 3 4 5)
+;   (3 . 1 2 4 5)
+;   (4 . 1 2 3 5)
+;   (5 . 1 2 3 4)
+;
+; A linear complexity algorithm: take the car of the elements and try it out
+; against the elements appended to the already-visited heads. To keep it linear
+; we need to prepend the attempted heads, but order doesn't matter as long as
+; we find the correct coercion that will cast all elements to the same type.
+
+(define (selections xs)
+  (let select ([head (car xs)]
+               [tail (cdr xs)]
+               [prev '()])
+    (if (null? tail)
+      (list (list head '() prev))
+      (cons (list head tail prev)
+            (select (car tail) (cdr tail) (cons head prev))))))
+
+(selections '(1 2 3 4 5))
+; '((1 (2 3 4 5) ())
+;   (2 (3 4 5) (1))
+;   (3 (4 5) (2 1))
+;   (4 (5) (3 2 1))
+;   (5 () (4 3 2 1)))
+
+; This will make it unnecessarily complicated to find coercions, and in the end
+; we'll need to get them all together into a single list of coercions anyway.
+; Might as well pay the quadratic toll of successive appends with the arguments
+; to simplify the coercion-finding procedure.
+
+(define (selections xs)
+  (let select ([head (car xs)]
+               [tail (cdr xs)]
+               [prev '()])
+    (if (null? tail)
+      (list (cons head prev))
+      (cons (append (cons head tail) prev)
+            (select (car tail) (cdr tail) (cons head prev))))))
+
+(selections '(1 2 3 4 5))
+; '((1 2 3 4 5)
+;   (2 3 4 5 1)
+;   (3 4 5 2 1)
+;   (4 5 3 2 1)
+;   (5 4 3 2 1))
+
+(define args
+  (list (make-rational 2 3)
+        (make-complex-from-real-imag 5 3)
+        (make-scheme-number 7)))
+; ((rational 2 . 3) (complex rectangular 5 . 3) 7)
+
+(selections args)
+; '(((rational 2 . 3) (complex rectangular 5 . 3) 7)
+;   ((complex rectangular 5 . 3) 7 (rational 2 . 3))
+;   (7 (complex rectangular 5 . 3) (rational 2 . 3)))
+
+(define type-tags
+  (map (lambda (xs) (map type-tag xs))
+     (selections args)))
+; '((rational complex scheme-number)
+;   (complex scheme-number rational)
+;   (scheme-number complex rational))
+
+; Try to find a destination type to which all other argument types can be
+; coerced. In this case we only have one coercion from scheme-number to
+; complex.
+
+(map (lambda (tts)
+       (let ([dst (car tts)]
+             [tail (cdr tts)])
+         (cons dst
+               (map (lambda (src) (cons src (get-coercion src dst)))
+                    tail))))
+     type-tags)
+; '((rational (complex . #f) (scheme-number . #f))
+;   (complex
+;    (scheme-number . #<procedure:scheme-number->complex>)
+;    (rational . #f))
+;   (scheme-number (complex . #f) (rational . #f)))
+
+; If any of the "values" in that homemade dictionary immediately above happen
+; to be all true (or rather, all not-#f), it means we have found a target type
+; for all other arguments. Grab the first such (key . values) pair, and perform
+; the coercions.
+
+; Let's make new test args for which we do have a coercion strategy, for the
+; sake of the exercise.
+(define args (list (make-scheme-number 3)
+                   (make-scheme-number 5)
+                   (make-complex-from-real-imag 2 3)
+                   (make-scheme-number 7)
+                   (make-complex-from-real-imag 3 2)))
+(display args)
+; (3
+;  5
+;  (complex rectangular 2 . 3)
+;  7
+;  (complex rectangular 3 . 2))
+
+(define (list-coercions args)
+  (map (lambda (order)
+         (let ([target-arg (car order)])
+           (map (lambda (arg)
+                  (cons (type-tag arg) (get-coercion (type-tag arg) (type-tag target-arg))))
+                order)))
+       (selections args)))
+
+(list-coercions args)
+; The first result shows the attempt to coerce everything to scheme-number.
+; Naturally there are no such coercions for complex numbers, so those are #f.
+; '(((scheme-number . #<procedure:scheme-number->scheme-number>)
+;    (scheme-number . #<procedure:scheme-number->scheme-number>)
+;    (complex . #f)
+;    (scheme-number . #<procedure:scheme-number->scheme-number>)
+;    (complex . #f))
+; ...
+; This is an attempt to coerce everything to a complex number. Since there are
+; both complex->complex and scheme-number->complex coercions, this is a
+; successful one and the one that will be attempted.
+;   ((complex . #<procedure:complex->complex>)
+;    (scheme-number . #<procedure:scheme-number->complex>)
+;    (complex . #<procedure:complex->complex>)
+;    (scheme-number . #<procedure:scheme-number->complex>)
+;    (scheme-number . #<procedure:scheme-number->complex>))
+
+; With this naive search we keep trying types we have already seen, even though
+; it would be enough to test each type as destination only once. We can turn a
+; successful coercion into a map of argument types to found coercion functions.
+; This will deduplicate the findings, and let us get back to the original order
+; in which the arguments were provided.
+
+(define (successful-coercion? coercions)
+  (foldl
+    (lambda (a b) (and (cdr a) b))
+    #t
+    coercions))
+
+(define bad-coercion (car (list-coercions args)))
+; '((scheme-number . #<procedure:scheme-number->scheme-number>)
+;   (scheme-number . #<procedure:scheme-number->scheme-number>)
+;   (complex . #f)
+;   (scheme-number . #<procedure:scheme-number->scheme-number>)
+;   (complex . #f))
+(define good-coercion (caddr (list-coercions args)))
+; '((complex . #<procedure:complex->complex>)
+;   (scheme-number . #<procedure:scheme-number->complex>)
+;   (complex . #<procedure:complex->complex>)
+;   (scheme-number . #<procedure:scheme-number->complex>)
+;   (scheme-number . #<procedure:scheme-number->complex>))
+
+(successful-coercion? (cdr bad-coercion)) ; #f
+(successful-coercion? (cdr good-coercion)) ; #t
+
+(define (select-successful-coercion coercions)
+  (cond [(null? coercions) #f]
+        [(successful-coercion? (cdar coercions))
+         (car coercions)]
+        [else (select-successful-coercion (cdr coercions))]))
+
+(select-successful-coercion (list-coercions args))
+; '((complex . #<procedure:complex->complex>)
+;   (scheme-number . #<procedure:scheme-number->complex>)
+;   (complex . #<procedure:complex->complex>)
+;   (scheme-number . #<procedure:scheme-number->complex>)
+;   (scheme-number . #<procedure:scheme-number->complex>))
+
+; We have selected a successful coercion strategy. Simplify it into a map of
+; argument types to a single destination type that can be used to coerce all
+; args before applying the operation.
+
+(define (coercion-map successful-coercion)
+  (define (contains? xs x)
+    (cond [(null? xs) #f]
+          [(eq? (caar xs) (car x)) #t]
+          [else (contains? (cdr xs) x)]))
+  (define (collect remaining accum)
+    (cond [(null? remaining)
+           accum]
+          [(contains? accum (car remaining))
+           (collect (cdr remaining) accum)]
+          [else (collect (cdr remaining) (cons (car remaining) accum))]))
+  (collect successful-coercion '()))
+
+; We can use this map to convert all arguments to a single type.
+(coercion-map (select-successful-coercion (list-coercions args)))
+; '((scheme-number . #<procedure:scheme-number->complex>)
+;   (complex . #<procedure:complex->complex>))
+
+; Finally, apply the right coercion to each argument.
+(define (apply-coercions coercion-map args)
+  ; By construction let's assume that coercion-map is valid and thus will
+  ; contain a coercion for every possible argument type.
+  (define (find-coercion cmap arg-type)
+    (if (eq? (caar cmap) arg-type)
+      (cdar cmap)
+      (find-coercion (cdr cmap) arg-type)))
+  (define (coerce arg)
+    (let ([cf (find-coercion coercion-map (type-tag arg))])
+      (cf arg)))
+  (map coerce args))
+
+(apply-coercions
+  (coercion-map (select-successful-coercion (list-coercions args)))
+  args)
+; '((complex rectangular 3 . 0)
+;   (complex rectangular 5 . 0)
+;   (complex rectangular 2 . 3)
+;   (complex rectangular 7 . 0)
+;   (complex rectangular 3 . 2))
+
+; Now we are ready to apply the generic operation across all the arguments.
+; We'll manually fold left to right with the first argument as initial value,
+; since we don't have a concept of a unit for every generic operation.
+
+(define (multi-apply-generic op . args)
+  ; The arguments have all been coerced here, all to the same target type. Fold
+  ; the arguments with the operation to build the result of repeated application.
+  (define (apply-successively acc args)
+    (if (null? args) acc
+        (let* ([arg (car args)]
+               [proc (get op (list (type-tag acc) (type-tag arg)))])
+          (if proc
+            (apply-successively
+              (apply proc (list acc (contents arg)))
+              (cdr args))
+            (error "no method for these arguments" (list op acc arg))))]))
+
+  (let ([coercion-strategy (select-successful-coercion (list-coercions args))])
+    (if coercion-strategy
+      (let ([coerced-args (apply-coercions coercion-strategy args)])
+        (apply-successively (car coerced-args) (cdr coerced-args)))
+      (error "no coercion strategy found for these argument types" (map type-tag args)))))
+
+(multi-apply-generic
+  'add (make-complex-from-real-imag 3 2)
+       (make-complex-from-real-imag 1 3)
+       (make-scheme-number 1.5)
+       (make-complex-from-real-imag 0 -1)
+       (make-scheme-number -3)) ; '(complex rectangular 2.5 . 4) :)
