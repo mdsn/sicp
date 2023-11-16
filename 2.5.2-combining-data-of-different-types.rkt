@@ -295,16 +295,17 @@
 ; we need to prepend the attempted heads, but order doesn't matter as long as
 ; we find the correct coercion that will cast all elements to the same type.
 
-(define (selections xs)
-  (let select ([head (car xs)]
-               [tail (cdr xs)]
-               [prev '()])
-    (if (null? tail)
-      (list (list head '() prev))
-      (cons (list head tail prev)
-            (select (car tail) (cdr tail) (cons head prev))))))
-
-(selections '(1 2 3 4 5))
+; (define (selections xs)
+;   (let select ([head (car xs)]
+;                [tail (cdr xs)]
+;                [prev '()])
+;     (if (null? tail)
+;       (list (list head '() prev))
+;       (cons (list head tail prev)
+;             (select (car tail) (cdr tail) (cons head prev))))))
+; 
+; (selections '(1 2 3 4 5))
+; ->
 ; '((1 (2 3 4 5) ())
 ;   (2 (3 4 5) (1))
 ;   (3 (4 5) (2 1))
@@ -325,27 +326,31 @@
       (cons (append (cons head tail) prev)
             (select (car tail) (cdr tail) (cons head prev))))))
 
-(selections '(1 2 3 4 5))
+; (selections '(1 2 3 4 5))
+; ->
 ; '((1 2 3 4 5)
 ;   (2 3 4 5 1)
 ;   (3 4 5 2 1)
 ;   (4 5 3 2 1)
 ;   (5 4 3 2 1))
 
-(define args
-  (list (make-rational 2 3)
-        (make-complex-from-real-imag 5 3)
-        (make-scheme-number 7)))
+; (define args
+;   (list (make-rational 2 3)
+;         (make-complex-from-real-imag 5 3)
+;         (make-scheme-number 7)))
+; ->
 ; ((rational 2 . 3) (complex rectangular 5 . 3) 7)
 
-(selections args)
+; (selections args)
+; ->
 ; '(((rational 2 . 3) (complex rectangular 5 . 3) 7)
 ;   ((complex rectangular 5 . 3) 7 (rational 2 . 3))
 ;   (7 (complex rectangular 5 . 3) (rational 2 . 3)))
 
-(define type-tags
-  (map (lambda (xs) (map type-tag xs))
-     (selections args)))
+; (define type-tags
+;   (map (lambda (xs) (map type-tag xs))
+;      (selections args)))
+; ->
 ; '((rational complex scheme-number)
 ;   (complex scheme-number rational)
 ;   (scheme-number complex rational))
@@ -353,14 +358,15 @@
 ; Try to find a destination type to which all other argument types can be
 ; coerced. In this case we only have one coercion from scheme-number to
 ; complex.
-
-(map (lambda (tts)
-       (let ([dst (car tts)]
-             [tail (cdr tts)])
-         (cons dst
-               (map (lambda (src) (cons src (get-coercion src dst)))
-                    tail))))
-     type-tags)
+;
+; (map (lambda (tts)
+;        (let ([dst (car tts)]
+;              [tail (cdr tts)])
+;          (cons dst
+;                (map (lambda (src) (cons src (get-coercion src dst)))
+;                     tail))))
+;      type-tags)
+; ->
 ; '((rational (complex . #f) (scheme-number . #f))
 ;   (complex
 ;    (scheme-number . #<procedure:scheme-number->complex>)
@@ -374,12 +380,12 @@
 
 ; Let's make new test args for which we do have a coercion strategy, for the
 ; sake of the exercise.
-(define args (list (make-scheme-number 3)
-                   (make-scheme-number 5)
-                   (make-complex-from-real-imag 2 3)
-                   (make-scheme-number 7)
-                   (make-complex-from-real-imag 3 2)))
-(display args)
+; (define args (list (make-scheme-number 3)
+;                    (make-scheme-number 5)
+;                    (make-complex-from-real-imag 2 3)
+;                    (make-scheme-number 7)
+;                    (make-complex-from-real-imag 3 2)))
+; ->
 ; (3
 ;  5
 ;  (complex rectangular 2 . 3)
@@ -394,7 +400,8 @@
                 order)))
        (selections args)))
 
-(list-coercions args)
+; (list-coercions args)
+; ->
 ; The first result shows the attempt to coerce everything to scheme-number.
 ; Naturally there are no such coercions for complex numbers, so those are #f.
 ; '(((scheme-number . #<procedure:scheme-number->scheme-number>)
@@ -424,21 +431,24 @@
     #t
     coercions))
 
-(define bad-coercion (car (list-coercions args)))
+; (define bad-coercion (car (list-coercions args)))
+; ->
 ; '((scheme-number . #<procedure:scheme-number->scheme-number>)
 ;   (scheme-number . #<procedure:scheme-number->scheme-number>)
 ;   (complex . #f)
 ;   (scheme-number . #<procedure:scheme-number->scheme-number>)
 ;   (complex . #f))
-(define good-coercion (caddr (list-coercions args)))
+
+; (define good-coercion (caddr (list-coercions args)))
+; ->
 ; '((complex . #<procedure:complex->complex>)
 ;   (scheme-number . #<procedure:scheme-number->complex>)
 ;   (complex . #<procedure:complex->complex>)
 ;   (scheme-number . #<procedure:scheme-number->complex>)
 ;   (scheme-number . #<procedure:scheme-number->complex>))
 
-(successful-coercion? (cdr bad-coercion)) ; #f
-(successful-coercion? (cdr good-coercion)) ; #t
+; (successful-coercion? (cdr bad-coercion)) ; #f
+; (successful-coercion? (cdr good-coercion)) ; #t
 
 (define (select-successful-coercion coercions)
   (cond [(null? coercions) #f]
@@ -446,7 +456,8 @@
          (car coercions)]
         [else (select-successful-coercion (cdr coercions))]))
 
-(select-successful-coercion (list-coercions args))
+; (select-successful-coercion (list-coercions args))
+;
 ; '((complex . #<procedure:complex->complex>)
 ;   (scheme-number . #<procedure:scheme-number->complex>)
 ;   (complex . #<procedure:complex->complex>)
@@ -471,7 +482,8 @@
   (collect successful-coercion '()))
 
 ; We can use this map to convert all arguments to a single type.
-(coercion-map (select-successful-coercion (list-coercions args)))
+; (coercion-map (select-successful-coercion (list-coercions args)))
+;
 ; '((scheme-number . #<procedure:scheme-number->complex>)
 ;   (complex . #<procedure:complex->complex>))
 
@@ -488,9 +500,9 @@
       (cf arg)))
   (map coerce args))
 
-(apply-coercions
-  (coercion-map (select-successful-coercion (list-coercions args)))
-  args)
+; (apply-coercions
+;   (coercion-map (select-successful-coercion (list-coercions args))) args)
+;
 ; '((complex rectangular 3 . 0)
 ;   (complex rectangular 5 . 0)
 ;   (complex rectangular 2 . 3)
@@ -520,15 +532,26 @@
         (apply-successively (car coerced-args) (cdr coerced-args)))
       (error "no coercion strategy found for these argument types" (map type-tag args)))))
 
-(multi-apply-generic
-  'add (make-complex-from-real-imag 3 2)
-       (make-complex-from-real-imag 1 3)
-       (make-scheme-number 1.5)
-       (make-complex-from-real-imag 0 -1)
-       (make-scheme-number -3))
+; (multi-apply-generic
+;   'add (make-complex-from-real-imag 3 2)
+;        (make-complex-from-real-imag 1 3)
+;        (make-scheme-number 1.5)
+;        (make-complex-from-real-imag 0 -1)
+;        (make-scheme-number -3))
+; ->
 ; '(complex rectangular 2.5 . 4) :)
 
 ; exercise 2.83
+; Here is an example of how raise is implemented in the scheme-number package:
+;
+;  (put 'raise 'scheme-number
+;       (lambda (x) (make-rational x 1)))
+;
+; This is not ideal: the scheme number package now has to know about a
+; different type that it can be upcasted to. One possible strategy around this
+; is to break the taxonomy out into its own structure, for example into a separate
+; hash map :: subtype -> supertype.
+
 (define (raise x) ((get 'raise (type-tag x)) x))
 
 (raise (make-scheme-number 3)) ; '(rational 3 . 1)
