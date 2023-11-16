@@ -508,7 +508,7 @@
             (apply-successively
               (apply proc (list acc (contents arg)))
               (cdr args))
-            (error "no method for these arguments" (list op acc arg))))]))
+            (error "no method for these arguments" (list op acc arg))))))
 
   (let ([coercion-strategy (select-successful-coercion (list-coercions args))])
     (if coercion-strategy
