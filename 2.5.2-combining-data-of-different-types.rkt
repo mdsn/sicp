@@ -550,9 +550,122 @@
 ; This is not ideal: the scheme number package now has to know about a
 ; different type that it can be upcasted to. One possible strategy around this
 ; is to break the taxonomy out into its own structure, for example into a separate
-; hash map :: subtype -> supertype.
+; hash map :: lower-type -> higher-type
 
 (define (raise x) ((get 'raise (type-tag x)) x))
 
 (raise (make-scheme-number 3)) ; '(rational 3 . 1)
 (raise (make-rational 1 3)) ; '(complex rectangular (rational 1 . 3) . 0)
+
+; exercise 2.84
+; We need a way to know which of two types is higher than the other in the
+; taxonomy. I guess in the case of scheme-number and complex, scheme-number
+; would be a subtype of complex, since every scheme-number is also a complex
+; number (or can be raised up to be one) and can thus be safely used where a
+; complex is expected.
+;
+; A simple solution that will prevent the thorny situation of the polygon
+; taxonomy: maintain an ordered global list of types:
+;
+;   ('scheme-number 'rational 'complex)
+;
+; When a new type is to be added, it can be inserted in the right place in the
+; list, to ensure the right raising order.
+
+(define *type-order* '(scheme-number rational complex))
+
+; (define (find-target-type t)
+;   (let iter ([xs *type-order*])
+;     (cond [(or (null? xs) (null? (cdr xs))) #f]
+;           [(eq? t (car xs)) (cadr xs)]
+;           [else (iter (cdr xs))])))
+;
+; (find-target-type 'scheme-number) ; 'rational
+; (find-target-type 'rational) ; 'complex
+; (find-target-type 'complex) ; #f
+
+; If the types are not the same, and assuming both types are in the taxonomy,
+; then the one that shows up first when traversing the *type-order* list is a
+; subtype of the other.
+; (define (higher-type t u)
+;   (let iter ([xs *type-order*])
+;     (cond [(null? xs) (error "types not in the taxonomy" t u)]
+;           [(eq? (car xs) t) u]
+;           [(eq? (car xs) u) t]
+;           [else (iter (cdr xs))])))
+;
+; (higher-type 'scheme-number 'complex) ; 'complex
+; (higher-type 'scheme-number 'rational) ; 'rational
+; (higher-type 'rational 'complex) ; 'complex
+;
+; Scenarios not considered:
+; (higher-type 'complex 'complex) ; 'complex 
+; (higher-type 'real 'complex) ; 'real
+
+; Maybe a more direct result to get from this iteration is an order. With
+; the same assumptions as above, we can just get both types at once in an
+; ordered pair. Let's say that the car of said pair can be raised to the cdr.
+; (define (order-types t u)
+;   (let iter ([xs *type-order*])
+;     (cond [(null? xs) (error "types not in the taxonomy" t u)]
+;           [(eq? (car xs) t) (cons t u)]
+;           [(eq? (car xs) u) (cons u t)]
+;           [else (iter (cdr xs))])))
+; 
+; (order-types 'scheme-number 'complex) ; '(scheme-number . complex)
+; (order-types 'complex 'scheme-number) ; '(scheme-number . complex)
+; (order-types 'rational 'scheme-number) ; '(scheme-number . rational)
+; (order-types 'complex 'rational) ; '(rational . complex)
+
+; That's good, but in the new implementation of apply-generic we'll want to
+; get the value as well since it's what we need to raise.
+(define (order-by-type a b)
+  (let ([ta (type-tag a)]
+        [tb (type-tag b)])
+    (let iter ([xs *type-order*])
+      (cond [(null? xs)
+             (error "types not in the taxonomy" ta tb)]
+            [(eq? (car xs) ta) (cons a b)]
+            [(eq? (car xs) tb) (cons b a)]
+            [else (iter (cdr xs))]))))
+
+; (order-by-type (make-scheme-number 3)
+;                (make-complex-from-real-imag 2 3)) ; '(3 complex rectangular 2 . 3)
+; (order-by-type (make-complex-from-real-imag 2 3)
+;                (make-scheme-number 3)) ; '(3 complex rectangular 2 . 3)
+
+; Raise a to type t, if necessary applying multiple raises.
+(define (raise-to t a)
+  (if (eq? t (type-tag a))
+    a
+    (raise-to t (raise a))))
+
+; (raise-to 'complex (make-scheme-number 3)) ; '(complex rectangular (rational 3 . 1) . 0)
+; (raise-to 'complex (make-rational 1 3)) ; '(complex rectangular (rational 1 . 3) . 0)
+
+(define (raising-apply-generic op . args)
+  (let* ([type-tags (map type-tag args)]
+         [proc (get op type-tags)])
+    (if proc
+      ; This captures arguments of the same type, since the operations are
+      ; directly implemented inside each package.
+      (apply proc (map contents args))
+      (let* ([ordered-args (order-by-type (car args) (cadr args))]
+             [a (car ordered-args)]
+             [b (cdr ordered-args)]
+             [raised-a (raise-to (type-tag b) a)])
+        (raising-apply-generic op raised-a b)))))
+
+; Fails because since raise raises one type at a time, we always get to complex with a
+; rational number in its real component, which are not supported yet.
+;
+; (raising-apply-generic
+;   'add
+;   (make-complex-from-real-imag 1 2)
+;   (make-scheme-number 2))
+; 
+; +: contract violation
+;   expected: number?
+;   given: '(rational 2 . 1)
+
+
