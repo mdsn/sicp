@@ -77,7 +77,7 @@
        (lambda (x) (= 0 x)))
   (put 'make 'scheme-number
        (lambda (x) (tag x)))
-  (put 'raise 'scheme-number
+  (put 'raise 'scheme-number        ; 2.83
        (lambda (x) (make-rational x 1)))
   'done)
 
@@ -119,8 +119,10 @@
          (= 0 (numer x))))
   (put 'make 'rational
        (lambda (n d) (tag (make-rat n d))))
-  (put 'raise 'rational
+  (put 'raise 'rational             ; 2.83
        (lambda (x) (make-complex-from-real-imag x 0)))
+  (put 'project '(rational)           ; 2.85
+       (lambda (x) (numer x)))
   'done)
 
 (define (install-rectangular-package)
@@ -143,6 +145,8 @@
        (lambda (x y) (tag (make-from-real-imag x y))))
   (put 'make-from-mag-ang 'rectangular
        (lambda (r a) (tag (make-from-mag-ang r a))))
+  (put 'project '(rectangular)        ; 2.85
+       (lambda (z) (real-part z)))
   'done)
 
 (define (install-polar-package)
@@ -165,6 +169,20 @@
        (lambda (x y) (tag (make-from-real-imag x y))))
   (put 'make-from-mag-ang 'polar
        (lambda (r a) (tag (make-from-mag-ang r a))))
+  ; Projecting a complex number in polar coordinates brings up a problem with
+  ; the "project and raise" method of assessing droppability: when projecting
+  ; a complex number we throw away the type information necessary to reconstruct
+  ; it when raising. We can only reasonably project to the real component of the
+  ; rectangular representation, but that turns out to be a regular scheme-number
+  ; so when raising back again we don't know whether to reconstruct the complex
+  ; number in rectangular or polar coordinates.
+  ; The problem is worked around by the fact that "equality" for complex numbers
+  ; is implemented in the complex package, that is, abstracted from the internal
+  ; representation. Thus we can still compare the original complex in polar coords
+  ; with the re-raised one in rectangular coordinates, and get the expected
+  ; comparison.
+  (put 'project '(polar)          ; 2.85
+       (lambda (z) (real-part z)))
   'done)
 
 (install-polar-package)
@@ -216,6 +234,8 @@
        (lambda (x y) (tag (make-from-real-imag x y))))
   (put 'make-from-mag-ang 'complex
        (lambda (r a) (tag (make-from-mag-ang r a))))
+  (put 'project '(complex)
+       (lambda (z) (project z)))
   'done)
 
 (define (real-part z) (apply-generic 'real-part z))
@@ -238,16 +258,16 @@
 (define n (make-scheme-number 3))
 (define z (make-complex-from-real-imag 1 4))
 
-(scheme-number->complex n) ; '(complex rectangular 3 . 0)
+; (scheme-number->complex n) ; '(complex rectangular 3 . 0)
 
 (put-coercion 'scheme-number 'complex scheme-number->complex)
 
-(add n z) ; '(complex rectangular 4 . 4)
+; (add n z) ; '(complex rectangular 4 . 4)
 
 ; exercise 2.81
 
-(apply-generic 'add (make-scheme-number 1) (make-scheme-number 2)) ; 3
-(apply-generic 'add (make-rational 2 3) (make-rational 2 3)) ; '(rational 4 . 3)
+; (apply-generic 'add (make-scheme-number 1) (make-scheme-number 2)) ; 3
+; (apply-generic 'add (make-rational 2 3) (make-rational 2 3)) ; '(rational 4 . 3)
 
 ; apply-generic works correctly as is. There is no need to avoid coercing when
 ; the types are the same because we get the base operation from the type's
@@ -272,8 +292,8 @@
 
 ; After adding a check for equal types before attempting coercion (because we
 ; failed to find a base implementation in the type's package):
-(exp (make-complex-from-real-imag 1 2)
-     (make-complex-from-real-imag 2 3))
+; (exp (make-complex-from-real-imag 1 2)
+;      (make-complex-from-real-imag 2 3))
 ; no method for these types '(exp (complex complex))
 
 ; exercise 2.82
@@ -554,8 +574,8 @@
 
 (define (raise x) ((get 'raise (type-tag x)) x))
 
-(raise (make-scheme-number 3)) ; '(rational 3 . 1)
-(raise (make-rational 1 3)) ; '(complex rectangular (rational 1 . 3) . 0)
+; (raise (make-scheme-number 3)) ; '(rational 3 . 1)
+; (raise (make-rational 1 3)) ; '(complex rectangular (rational 1 . 3) . 0)
 
 ; exercise 2.84
 ; We need a way to know which of two types is higher than the other in the
@@ -668,4 +688,5 @@
 ;   expected: number?
 ;   given: '(rational 2 . 1)
 
-
+; exercise 2.85
+; exercise 2.86
