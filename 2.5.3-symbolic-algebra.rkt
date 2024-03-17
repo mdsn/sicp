@@ -51,6 +51,7 @@
 (define (mul x y) (apply-generic 'mul x y))
 (define (div x y) (apply-generic 'div x y))
 (define (equ x y) (apply-generic 'equ x y))
+(define (neg x) (apply-generic 'neg x))  ; 2.88
 (define (=zero? x) (apply-generic 'zero x))
 
 (define (install-scheme-number-package)
@@ -70,6 +71,8 @@
        (lambda (x y) (tag (expt x y))))
   (put 'zero '(scheme-number)
        (lambda (x) (= 0 x)))
+  (put 'neg '(scheme-number)
+       (lambda (x) (- x)))
   (put 'make 'scheme-number
        (lambda (x) (tag x)))
   (put 'raise 'scheme-number        ; 2.83
@@ -103,12 +106,40 @@
                             (term-list p2)))
       (error "Polys not in the same var -- ADD-POLY" (list p1 p2))))
 
+  ; 2.88
+  ; To subtract polynomials, we can compute -p2 and add it with add-poly.
+  (define (sub-poly p1 p2)
+    (if (same-variable? (variable p1) (variable p2))
+      (let ([minus-p2 (neg-poly p2)])
+        (add-poly p1 minus-p2))
+      (error "Polys not in the same var -- SUB-POLY" (list p1 p2))))
+
+  ; 2.88
+  ; Generic negation operation for polynomials. This is necessary to support
+  ; subtraction of polynomials with polynomial coefficients; without it we
+  ; wouldn't know how to negate each coefficient in negate-terms.
+  (define (neg-poly p)
+    (make-poly (variable p)
+               (negate-terms (term-list p))))
+
+  ; 2.88
+  ; Negate terms by generically negating the coefficient of each term into
+  ; a new term list. 'neg' is the generic negation operation from the hint.
+  (define (negate-terms L)
+    (if (empty-termlist? L)
+      (the-empty-termlist)
+      (let ([t (first-term L)])
+        (adjoin-term
+          (make-term (order t)
+                     (neg (coeff t)))
+          (negate-terms (rest-terms L))))))
+
   (define (add-terms L1 L2)
     (cond ((empty-termlist? L1) L2)
           ((empty-termlist? L2) L1)
           (else
-            (let ((t1 (first-term L1))
-                  (t2 (first-term L2)))
+            (let ([t1 (first-term L1)]
+                  [t2 (first-term L2)])
               (cond ((> (order t1) (order t2))
                      (adjoin-term
                        t1 (add-terms (rest-terms L1) L2)))
@@ -138,7 +169,7 @@
   (define (mul-term-by-all-terms t1 L)
     (if (empty-termlist? L)
       (the-empty-termlist)
-      (let ((t2 (first-term L)))
+      (let ([t2 (first-term L)])
         (adjoin-term
           (make-term (+ (order t1) (order t2))
                      (mul (coeff t1) (coeff t2)))
@@ -149,10 +180,18 @@
   ; polynomials will be represented sparsely, as a list of non-zero terms,
   ; each of the form (order coeff). If the polynomial is 0, all its terms are 0,
   ; so the list of terms is empty.
+  ; Although, why not '(polynomial x (0 0)) ? We may end up in a situation like
+  ; this when adding/subtracting polynomials, unless specifically simplifying away
+  ; terms with coefficient 0.
   (put 'zero '(polynomial)
        (lambda (p) (empty-termlist? (term-list p))))
   (put 'add '(polynomial polynomial)
        (lambda (p1 p2) (tag (add-poly p1 p2))))
+  ; exercise 2.88
+  (put 'neg '(polynomial)
+       (lambda (p) (tag (neg-poly p))))
+  (put 'sub '(polynomial polynomial)
+       (lambda (p1 p2) (tag (sub-poly p1 p2))))
   (put 'mul '(polynomial polynomial)
        (lambda (p1 p2) (tag (mul-poly p1 p2))))
   (put 'make 'polynomial
@@ -201,3 +240,12 @@
 ;   (0 (polynomial y (1 2))))
 ; = (y+1)x^2 + (2y^2+2)x + 2y :)
 
+; 2.88
+; (sub (make-polynomial 'x (list (make-term 2 2)
+;                                (make-term 1 3)
+;                                (make-term 0 5))) ; 2x^2 + 3x + 5
+;      (make-polynomial 'x (list (make-term 2 1)
+;                                (make-term 1 1)
+;                                (make-term 0 3)))) ; x^2 + x + 3
+; '(polynomial x (2 1) (1 2) (0 2))
+;  = x^2 + 2x + 2 :)
