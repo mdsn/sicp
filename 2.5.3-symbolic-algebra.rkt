@@ -182,7 +182,8 @@
   ; so the list of terms is empty.
   ; Although, why not '(polynomial x (0 0)) ? We may end up in a situation like
   ; this when adding/subtracting polynomials, unless specifically simplifying away
-  ; terms with coefficient 0.
+  ; terms with coefficient 0. (Actually, not as long as we use adjoin-term since
+  ; it disregards 0-coefficient terms.)
   (put 'zero '(polynomial)
        (lambda (p) (empty-termlist? (term-list p))))
   (put 'add '(polynomial polynomial)
@@ -249,3 +250,68 @@
 ;                                (make-term 0 3)))) ; x^2 + x + 3
 ; '(polynomial x (2 1) (1 2) (0 2))
 ;  = x^2 + 2x + 2 :)
+
+; Exercise 2.89
+; The representation suggested in the text for dense polynomials starts
+; with the coefficient of the highest order term.
+; Operations on polynomials will not be able to manipulate term lists directly
+; as they won't know its representation. They will need to do so through
+; generic operations provided by 'dense' and 'sparse' packages for term lists.
+; A better programmer than me would realize that the term list type actually
+; depends on the representation of terms. In the case of sparse term lists,
+; each term carries its own order, as if it were
+;
+;   '(term-sparse order coeff).
+;
+; This is visible in the way the term list operations are written for sparse
+; term lists: make-term directly takes an order and coefficient. For dense
+; term lists though, terms don't carry their own order; it can only be
+; determined by the length of the entire sublist of terms. It's also not
+; immediately obvious what the constructor for make-dense-term would look
+; like: in order to create, say, for order 5 and coefficient 2, we
+; would need to return (2 0 0 0 0 0) as the term, so as to allow the
+; term to carry its own order. This would be necessary for example to
+; implement multiplication of polynomials, where terms are created whose
+; order is the addition of the order of two terms in the original
+; polynomials.
+
+; A dense term is the coefficient of its order n followed by a list of
+; n-1 zeros. Linear in the order of the term.
+(define (make-term-dense order coeff)
+  (cons coeff (build-list order (const 0))))
+; (make-term-dense 5 2) ; '(2 0 0 0 0 0)
+; (make-term-dense 0 1) ; '(1)
+
+; The order of a dense representation term is the number of zeros following
+; its coefficient. Linear in the order of the term.
+(define (order-dense term)
+  (- (length term) 1))
+; (order-dense (make-term-dense 5 2)) ; 5
+
+; The coefficient of a dense term is its head. Constant time.
+(define (coeff-dense term)
+  (car term))
+; (coeff-dense (make-term-dense 5 2)) ; 2
+
+; With the constructor and selector for dense-representation terms, we can go
+; up one level and implement operations for dense term lists.
+
+; For dense-repr term lists, each term has to be "reconstructed" out of the
+; term list, which is really just a list of coefficients. We aren't dealing
+; with generic operations on terms or term lists so we'll just assume that
+; dense-term-list operations know their dense-term representations.
+(define (first-term-dense terms)
+  (let ([coeff (car terms)]
+        [order (length (cdr terms))])
+    (make-term-dense order coeff)))
+
+; (first-term-dense '(1 2 0 3 -2 -5)) ; '(1 0 0 0 0 0)
+
+; In exchange for the linear cost of taking the first term of a term list,
+; getting the rest of the terms is easy and constant time.
+(define (rest-terms-dense terms)
+  (cdr terms))
+
+; (rest-terms-dense '(1 2 0 3 -2 -5)) ; '(2 0 3 -2 -5)
+
+; the-empty-termlist and empty-termlist? are the same for both representations.
