@@ -134,6 +134,10 @@
                      (neg (coeff t)))
           (negate-terms (rest-terms L))))))
 
+  (define (sub-terms L1 L2)
+    (let ([minus-l2 (negate-terms L2)])
+      (add-terms L1 minus-l2)))
+
   (define (add-terms L1 L2)
     (cond ((empty-termlist? L1) L2)
           ((empty-termlist? L2) L1)
@@ -175,6 +179,34 @@
                      (mul (coeff t1) (coeff t2)))
           (mul-term-by-all-terms t1 (rest-terms L))))))
 
+  ; exercise 2.91
+  (define (div-poly p1 p2)
+    (if (same-variable? (variable p1) (variable p2))
+      (let ([quot-rem (div-terms (term-list p1) (term-list p2))])
+        (list (make-poly (variable p1) (car quot-rem))
+              (make-poly (variable p1) (cdr quot-rem))))
+      (error "Polys not in the same var -- DIV-POLY" (list p1 p2))))
+
+  (define (div-terms L1 L2)
+    (if (empty-termlist? L1)
+      (list (the-empty-termlist) (the-empty-termlist))
+      (let ([t1 (first-term L1)]
+            [t2 (first-term L2)])
+        (if (> (order t2) (order t1))
+          (list (the-empty-termlist) L1)
+          (let* ([new-coeff (div (coeff t1) (coeff t2))]
+                 [new-order (- (order t1) (order t2))]
+                 [new-term (make-term new-order new-coeff)]
+                 [singleton-termlist
+                   (adjoin-term new-term (the-empty-termlist))]
+                 [diff
+                   (sub-terms L1 (mul-terms singleton-termlist L2))]
+                 [rest-of-result
+                   (div-terms diff L2)])
+            (list
+              (adjoin-term new-term (car rest-of-result))
+              (cdr rest-of-result)))))))
+
   (define (tag p) (attach-tag 'polynomial p))
   ; exercise 2.87
   ; polynomials will be represented sparsely, as a list of non-zero terms,
@@ -195,6 +227,11 @@
        (lambda (p1 p2) (tag (sub-poly p1 p2))))
   (put 'mul '(polynomial polynomial)
        (lambda (p1 p2) (tag (mul-poly p1 p2))))
+  (put 'div '(polynomial polynomial)
+       (lambda (p1 p2)
+         (let ([quot-rem (div-poly p1 p2)])
+           (list (tag (car quot-rem))
+                 (tag (cdr quot-rem))))))
   (put 'make 'polynomial
        (lambda (var terms) (tag (make-poly var terms))))
   'done)
@@ -315,3 +352,9 @@
 ; (rest-terms-dense '(1 2 0 3 -2 -5)) ; '(2 0 3 -2 -5)
 
 ; the-empty-termlist and empty-termlist? are the same for both representations.
+
+; Exercise 2.91
+; (div (make-polynomial 'x '((5 1) (0 -1)))
+;      (make-polynomial 'x '((2 1) (0 -1))))
+; '((polynomial x (3 1) (1 1))              x^3 + x
+;   (polynomial (x ((((1 1) (0 -1)))))))    x - 1  :)
