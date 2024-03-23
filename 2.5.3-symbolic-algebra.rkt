@@ -53,10 +53,15 @@
 (define (equ x y) (apply-generic 'equ x y))
 (define (neg x) (apply-generic 'neg x))  ; 2.88
 (define (=zero? x) (apply-generic 'zero x))
+(define (greatest-common-divisor x y) (apply-generic 'gcd x y))
 
 (define (install-scheme-number-package)
   (define (tag x)
     (attach-tag 'scheme-number x))
+  (define (gcd-integer x y)
+    (if (= y 0)
+      x
+      (gcd-integer y (remainder x y))))
   (put 'add '(scheme-number scheme-number)
        (lambda (x y) (tag (+ x y))))
   (put 'sub '(scheme-number scheme-number)
@@ -73,6 +78,8 @@
        (lambda (x) (= 0 x)))
   (put 'neg '(scheme-number)
        (lambda (x) (- x)))
+  (put 'gcd '(scheme-number scheme-number)
+       (lambda (x y) (tag (gcd-integer x y))))
   (put 'make 'scheme-number
        (lambda (x) (tag x)))
   (put 'raise 'scheme-number        ; 2.83
@@ -81,6 +88,8 @@
 
 ; polynomials
 (define (install-polynomial-package)
+  (define (tag p) (attach-tag 'polynomial p))
+
   (define (make-poly variable term-list)
     (cons variable term-list))
   (define (variable p) (car p))
@@ -189,11 +198,11 @@
 
   (define (div-terms L1 L2)
     (if (empty-termlist? L1)
-      (list (the-empty-termlist) (the-empty-termlist))
+      (cons (the-empty-termlist) (the-empty-termlist))
       (let ([t1 (first-term L1)]
             [t2 (first-term L2)])
         (if (> (order t2) (order t1))
-          (list (the-empty-termlist) L1)
+          (cons (the-empty-termlist) L1)
           (let* ([new-coeff (div (coeff t1) (coeff t2))]
                  [new-order (- (order t1) (order t2))]
                  [new-term (make-term new-order new-coeff)]
@@ -203,11 +212,27 @@
                    (sub-terms L1 (mul-terms singleton-termlist L2))]
                  [rest-of-result
                    (div-terms diff L2)])
-            (list
+            (cons
               (adjoin-term new-term (car rest-of-result))
               (cdr rest-of-result)))))))
 
-  (define (tag p) (attach-tag 'polynomial p))
+  ; 2.94
+  (define (remainder-terms L1 L2)
+    (cdr (div-terms L1 L2)))
+
+  ; 2.94
+  (define (gcd-terms L1 L2)
+    (if (empty-termlist? L2)
+      L1
+      (gcd-terms L2 (remainder-terms L1 L2))))
+
+  ; 2.94
+  (define (gcd-poly p1 p2)
+    (if (same-variable? (variable p1) (variable p2))
+      (make-poly (variable p1)
+                 (gcd-terms (term-list p1) (term-list p2)))
+      (error "Polys not in the same var -- GCD-POLY" (list p1 p2))))
+
   ; exercise 2.87
   ; polynomials will be represented sparsely, as a list of non-zero terms,
   ; each of the form (order coeff). If the polynomial is 0, all its terms are 0,
@@ -231,7 +256,9 @@
        (lambda (p1 p2)
          (let ([quot-rem (div-poly p1 p2)])
            (list (tag (car quot-rem))
-                 (tag (cdr quot-rem))))))
+                 (tag (cadr quot-rem))))))
+  (put 'gcd '(polynomial polynomial)
+       (lambda (p1 p2) (tag (gcd-poly p1 p2))))
   (put 'make 'polynomial
        (lambda (var terms) (tag (make-poly var terms))))
   'done)
@@ -354,7 +381,73 @@
 ; the-empty-termlist and empty-termlist? are the same for both representations.
 
 ; Exercise 2.91
-; (div (make-polynomial 'x '((5 1) (0 -1)))
-;      (make-polynomial 'x '((2 1) (0 -1))))
-; '((polynomial x (3 1) (1 1))              x^3 + x
-;   (polynomial (x ((((1 1) (0 -1)))))))    x - 1  :)
+(div (make-polynomial 'x '((5 1) (0 -1)))
+     (make-polynomial 'x '((2 1) (0 -1))))
+; '((polynomial x (3 1) (1 1))      x^3 + x
+;   (polynomial x (1 1) (0 -1)))    x - 1  :)
+
+; Exercise 2.93
+
+; From 2.5.1
+(define (install-rational-package)
+  (define (tag x) (attach-tag 'rational x))
+
+  (define (numer x) (car x))
+  (define (denom x) (cdr x))
+
+  (define (make-rat n d)
+    (let ([g (greatest-common-divisor n d)])
+      (cons (div n g) (div d g))))
+
+  (define (add-rat x y)
+    (make-rat (add (mul (numer x) (denom y))
+                   (mul (numer y) (denom x)))
+              (mul (denom x) (denom y))))
+  (define (sub-rat x y)
+    (make-rat (sub (mul (numer x) (denom y))
+                   (mul (numer y) (denom x)))
+              (mul (denom x) (denom y))))
+  (define (mul-rat x y)
+    (make-rat (mul (numer x) (numer y))
+              (mul (denom x) (denom y))))
+  (define (div-rat x y)
+    (make-rat (mul (numer x) (denom y))
+              (mul (denom x) (numer y))))
+
+  (put 'add '(rational rational)
+       (lambda (x y) (tag (add-rat x y))))
+  (put 'sub '(rational rational)
+       (lambda (x y) (tag (sub-rat x y))))
+  (put 'mul '(rational rational)
+       (lambda (x y) (tag (mul-rat x y))))
+  (put 'div '(rational rational)
+       (lambda (x y) (tag (div-rat x y))))
+  (put 'equ '(rational rational)
+       (lambda (x y)
+         (and (equ (numer x) (numer y))
+              (equ (denom x) (denom y)))))
+  (put 'zero '(rational)
+       (lambda (x) (=zero? (numer x))))
+  (put 'make 'rational
+       (lambda (n d) (tag (make-rat n d))))
+  'done)
+
+(define (make-rational n d)
+  ((get 'make 'rational) n d))
+
+(install-rational-package)
+
+; (define p1 (make-polynomial 'x '((2 1) (0 1))))
+; (define p2 (make-polynomial 'x '((3 1) (0 1))))
+; (define rf (make-rational p2 p1)) ; '(rational (polynomial x (3 1) (0 1)) (polynomial x (2 1) (0 1)))
+
+; Exercise 2.94
+(greatest-common-divisor
+  (make-polynomial 'x '((3 1) (1 -1)))
+  (make-polynomial 'x '((4 1) (3 -1) (2 -2) (1 2)))) ; '(polynomial x (2 -1) (1 1))
+
+; x^4 - x^3 - 2x^2 + 2x
+; x^3 - x
+; supposed to be x^2 - x => ((2 1) (1 -1))
+; :(
+
