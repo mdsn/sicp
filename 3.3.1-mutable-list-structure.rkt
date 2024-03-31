@@ -1,5 +1,3 @@
-#lang sicp
-
 ; 3.12
 (define (last-pair x)
   (if (null? (cdr x))
