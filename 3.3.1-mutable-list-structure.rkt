@@ -56,3 +56,40 @@
 ; final loop: x = '(), y = '(d c b a), ta-da!
 
 ; (display w) ; '(d c b a)
+
+; 3.16
+(define (count-pairs x)
+  (if (not (pair? x))
+    0
+    (+ (count-pairs (car x))
+       (count-pairs (cdr x))
+       1)))
+
+; 3) Plain straight list
+; (count-pairs '(a b c)) ; 3
+
+; 4) Nested list ((a . (b . ())) . ()), then set the cdr
+; to the cdr of the car
+;  -> the car: (a b), the cdr: (b . ())
+;
+; (define t '((a b)))
+; (set-cdr! t (cdar t))
+; (display t) ; ((a b) b)
+; (count-pairs t) ; 4
+
+; 7) Start with a regular list, then point the car of the
+; first pair to the car of the second pair, and point
+; the car of the second pair to the car of the third pair.
+;
+; (define u '(a b c))
+; (set-car! u (cdr u))
+; (display u) ; ((b c) b c)
+; (set-car! (cdr u) (cddr u))
+; (display u) ; (((c) c) (c) c)
+; (count-pairs u) ; 7
+
+; Never return) set the cdr of the last pair to the first
+; (define v '(a b c))
+; (set-cdr! (last-pair v) v)
+; (display v) ; #0=(a b c . #0#)
+; I think racket detects this and displays it like so?
