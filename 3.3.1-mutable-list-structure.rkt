@@ -123,3 +123,24 @@
 ; (count-pairs-pls u) ; 3
 
 ; :)
+
+; 3.18
+; Same idea as before but taking successive cdrs until we either
+; land on an already seen pair and bail, or reach the end of the
+; list, in which case the list is free of cycles. Takes space linear
+; on the length of the list, since we store every visited pair.
+(define (has-cycle? x)
+  (define seen '())
+  (define (traverse x)
+    (cond ((null? x) #f)
+          ((memq x seen) #t)
+          (else
+            (begin (set! seen (cons x seen))
+                   (traverse (cdr x))))))
+  (traverse x))
+
+; (define ouroboros (make-cycle '(a b c)))
+; (has-cycle? ouroboros) ; #t
+; (has-cycle? '(1 2 3)) ; #f
+
+
