@@ -93,3 +93,33 @@
 ; (set-cdr! (last-pair v) v)
 ; (display v) ; #0=(a b c . #0#)
 ; I think racket detects this and displays it like so?
+
+; 3.17
+; Push each pair into a 'seen' list in the count-pairs-pls execution
+; environment as we traverse the structure, and test for membership
+; with memq for pointer equality to prevent double counting already
+; seen pairs.
+(define (count-pairs-pls x)
+  (define seen '())
+  (define (traverse x)
+    (cond ((not (pair? x)) 0)
+          ((memq x seen) 0)
+          (else
+            (begin (set! seen (cons x seen))    ; why not
+                   (+ (traverse (car x))
+                      (traverse (cdr x))
+                      1)))))
+  (traverse x))
+
+; (count-pairs-pls '(a b c)) ; 3
+
+; (define t '((a b)))
+; (set-cdr! t (cdar t))
+; (count-pairs-pls t) ; 3
+
+; (define u '(a b c))
+; (set-car! u (cdr u))
+; (set-car! (cdr u) (cddr u))
+; (count-pairs-pls u) ; 3
+
+; :)
