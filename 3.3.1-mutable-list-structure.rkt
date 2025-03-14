@@ -143,4 +143,53 @@
 ; (has-cycle? ouroboros) ; #t
 ; (has-cycle? '(1 2 3)) ; #f
 
+; 3.19
+; A cycle can start at any point in the list, it won't necessarily
+; take you back to the beginning:
+;
+;       a -> b -> c -> d
+;             \       /
+;              f <- e
+;
+; The well known solution to this is Floyd's algorithm.
+
+(define (take xs n)
+  (cond ((null? xs) '())
+        ((= n 0) '())
+        (else (cons (car xs)
+                    (take (cdr xs) (- n 1))))))
+
+(define cyclic (cons 'a (make-cycle '(b c d e f))))
+
+; (take cyclic 10)
+; (mcons 'a
+; (mcons 'b
+; (mcons 'c
+; (mcons 'd
+; (mcons 'e
+; (mcons 'f
+; (mcons 'b
+; (mcons 'c
+; (mcons 'd
+; (mcons 'e '()))))))))))
+
+; We only need the predicate part of Floyd's algorithm,
+; not to fully determine the period and start of the cycle.
+(define (floyd? xs)
+
+  (define (iter fast slow)
+    (cond ((null? fast) #f)
+          ((null? (cdr fast)) #f)
+          ((eq? fast slow) #t)
+          (else (iter (cdr (cdr fast)) (cdr slow)))))
+
+  (if (or (null? xs) (null? (cdr xs)))
+    #f
+    (let* ((slow (cdr xs))
+           (fast (cdr slow)))
+      (iter fast slow))))
+
+(floyd? cyclic) ; #t
+(floyd? '(a b c d e f)) ; #f
+
 
