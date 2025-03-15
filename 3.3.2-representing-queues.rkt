@@ -67,3 +67,52 @@
 (print-queue q1) ; (b)
 (delete-queue! q1)
 (print-queue q1) ; ()
+
+; 3.22
+(define (make-queue-proc)
+  (let* ((front-ptr '())
+         (rear-ptr '())
+         (empty-queue?
+          (lambda () (null? front-ptr)))
+         (front-queue
+          (lambda ()
+            (if (empty-queue?)
+              (error "front-queue: empty queue")
+              (car front-ptr))))
+         (insert-queue  ; how to return the modified queue here?
+          (lambda (x)
+            (let ((new-elem (cons x '())))
+             (cond ((empty-queue?)
+                    (set! front-ptr new-elem)
+                    (set! rear-ptr new-elem))
+                   (else
+                     (set-cdr! rear-ptr new-elem)
+                     (set! rear-ptr new-elem))))))
+         (delete-queue!
+          (lambda ()
+            (cond ((empty-queue?)
+                   (error "delete-queue!: empty queue"))
+                  (else
+                    (set! front-ptr (cdr front-ptr)))))))
+
+    (define (dispatch m)
+      (cond ((eq? m 'insert) insert-queue)
+            ((eq? m 'delete) (delete-queue!))
+            ((eq? m 'empty) (empty-queue?))
+            ((eq? m 'front) (front-queue))))
+    dispatch))
+
+(define (empty-queue-proc? q) (q 'empty))
+(define (front-queue-proc q) (q 'front))
+(define (insert-queue-proc! q x) ((q 'insert) x))
+(define (delete-queue-proc! q) (q 'delete))
+
+(define q2 (make-queue-proc))
+(empty-queue-proc? q2) ; #t
+(insert-queue-proc! q2 'a)
+(insert-queue-proc! q2 'b)
+(front-queue-proc q2) ; 'a
+(delete-queue-proc! q2)
+(front-queue-proc q2) ; 'b
+(delete-queue-proc! q2)
+(empty-queue-proc? q2) ; #t
