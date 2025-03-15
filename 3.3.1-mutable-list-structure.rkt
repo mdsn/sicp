@@ -177,13 +177,15 @@
 ; not to fully determine the period and start of the cycle.
 (define (floyd? xs)
 
+  (define (enough-elems? xs)
+    (not (or (null? xs) (null? (cdr xs)))))
+
   (define (iter fast slow)
-    (cond ((null? fast) #f)
-          ((null? (cdr fast)) #f)
+    (cond ((not (enough-elems? fast)) #f)
           ((eq? fast slow) #t)
           (else (iter (cdr (cdr fast)) (cdr slow)))))
 
-  (if (or (null? xs) (null? (cdr xs)))
+  (if (not (enough-elems? xs))
     #f
     (let* ((slow (cdr xs))
            (fast (cdr slow)))
