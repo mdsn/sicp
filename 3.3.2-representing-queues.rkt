@@ -69,6 +69,11 @@
 (print-queue q1) ; ()
 
 ; 3.22
+; the procedural representation of a queue is a closure--instead of keeping
+; the front and rear pointers in a pair, they are bound in the environment in
+; which dispatch executes. The operations have direct access to them because
+; they are defined in the same scope, so there is no need to abstract set-front-ptr!
+; or set-rear-ptr! away.
 (define (make-queue-proc)
   (let* ((front-ptr '())
          (rear-ptr '())
@@ -116,3 +121,90 @@
 (front-queue-proc q2) ; 'b
 (delete-queue-proc! q2)
 (empty-queue-proc? q2) ; #t
+
+; exercise 3.23 -- deque is pronounced like "deck".
+; inserting at the front amounts to prepending on a list, which is O(1).
+; inserting at the rear is the same as with the queue.
+; deleting at the front is the same as with the queue.
+; deleting at the rear though is trickier--the final node needs to know
+; who its predecessor is, so the deque can bring the rear-ptr back to it.
+; Therefore we need a doubly linked list (dll) here.
+;
+;   dq -> [front  |  rear]
+;           |           |
+;           v           v
+;          [a <-> b <-> c]
+
+; A dll node is a pair ((val prev) next). This is so there is a natural
+; forward list representation for the printer.
+(define (make-dll-node prev next val)
+  (cons (cons val prev) next))
+
+(define (set-prev! node prev) (set-cdr! (car node) prev))
+(define (set-next! node next) (set-cdr! node next))
+(define (val-dll-node node) (car (car node)))
+(define (prev-dll-node node) (cdr (car node)))
+(define (next-dll-node node) (cdr node))
+
+; A dll is a pair of pointers to dll-nodes at the front and rear.
+(define (make-dll)
+  (cons '() '()))
+
+(define (front-dll dll) (car dll))
+(define (rear-dll dll) (cdr dll))
+
+(define (set-front-dll! dll node) (set-car! dll node))
+(define (set-rear-dll! dll node) (set-cdr! dll node))
+
+(define (empty-dll? dll)
+  (null? (front-dll dll)))
+
+(define (prepend-dll! dll val)
+  (let ((node (make-dll-node '() (front-dll dll) val)))
+    (cond ((empty-dll? dll)
+           (set-front-dll! dll node)
+           (set-rear-dll! dll node))
+          (else
+            (set-front-dll! dll node)))))
+
+(define (append-dll! dll val)
+  (let ((node (make-dll-node (rear-dll dll) '() val)))
+    (cond ((empty-dll? dll) ; XXX repeated
+           (set-front-dll! dll node)
+           (set-rear-dll! dll node))
+          (else
+            (set-rear-dll! dll node)))))
+
+(define dll (make-dll))
+(empty-dll? dll) ; #t
+(prepend-dll! dll 'a)
+(empty-dll? dll) ; #f
+(prepend-dll! dll 'b)
+(val-dll-node (front-dll dll)) ; 'b
+(append-dll! dll 'c)
+(val-dll-node (rear-dll dll)) ; 'c
+
+(define (delete-front-dll! dll)
+  (cond ((empty-dll? dll)
+         (error "delete-front-dll!: empty dll" dll))
+        (else
+          (set-front-dll! dll (next-dll-node (front-dll dll)))
+          (set-prev! (front-dll dll) '()))))
+
+(define (delete-rear-dll! dll)
+  (cond ((empty-dll? dll)
+         (error "delete-rear-dll!: empty dll" dll))
+        (else
+          (set-rear-dll! dll (prev-dll-node (rear-dll dll)))
+          (set-next! (rear-dll dll) '()))))
+
+; dll = (b a c)
+(delete-front-dll! dll) ; (a c)
+(val-dll-node (front-dll dll)) ; 'a
+(append-dll! dll 'd) ; (a c d)
+(val-dll-node (rear-dll dll)) ; 'd
+(delete-rear-dll! dll) ; (a c)
+(val-dll-node (rear-dll dll)) ; 'c
+
+; The dll is practically a deque, it supports prepend/append and
+; deletes on both ends in constant time.
