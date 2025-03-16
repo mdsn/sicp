@@ -143,4 +143,51 @@
 (get 'a 'x) ; 3
 (get 'b 'z) ; #f
 
+; exercise 3.24
+(define (make-table-object-pred same-key?)
+  (let ((local-table (list '*table)))
+    ; A generic assoc operation that uses same-key? to test for equality.
+    (define (generic-assoc key records)
+      (cond ((null? records) #f)
+        ((same-key? key (caar records))
+         (car records))
+        (else (generic-assoc key (cdr records)))))
+    ; Lookup using the generic-assoc
+    (define (lookup key)
+      (let ((record (generic-assoc key (cdr local-table))))
+        (if record
+          (cdr record)
+          #f)))
+    ; Insert using the generic-assoc
+    (define (insert! key value)
+      (let ((record (generic-assoc key (cdr local-table))))
+        (if record
+          (set-cdr! record value)
+          (set-cdr! local-table (cons (cons key value)
+                                      (cdr local-table)))))
+      'ok)
+    (define (dispatch m)
+      (cond ((eq? m 'lookup) lookup)
+            ((eq? m 'insert) insert!)
+            (else (error "Unknown operation -- TABLE" m))))
+    dispatch))
+
+; A predicate for numeric keys
+(define (within-5 x y)
+  (<= (abs (- x y)) 5))
+
+(define numeric-table (make-table-object-pred within-5))
+(define get (numeric-table 'lookup))
+; Note that insert will overwrite only the first element whose
+; key matches the predicate--there may be more than one!
+(define put (numeric-table 'insert))
+
+(put 3 'three)
+(put 10 'ten)
+(put 25 'twenty-five)
+(get 5) ; 'ten  -- the table is not ordered; (10 'ten) was prepended
+        ; in the local table, so it matches first
+(get -1) ; 'three
+(get 30) ; 'twenty-five
+(get 31) ; #f
 
