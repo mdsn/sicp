@@ -142,8 +142,8 @@
 
 (define (set-prev! node prev) (set-cdr! (car node) prev))
 (define (set-next! node next) (set-cdr! node next))
-(define (val-dll-node node) (car (car node)))
-(define (prev-dll-node node) (cdr (car node)))
+(define (val-dll-node node) (caar node))
+(define (prev-dll-node node) (cdar node))
 (define (next-dll-node node) (cdr node))
 
 ; A dll is a pair of pointers to dll-nodes at the front and rear.
