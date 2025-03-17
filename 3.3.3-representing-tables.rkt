@@ -191,3 +191,50 @@
 (get 30) ; 'twenty-five
 (get 31) ; #f
 
+; exercise 3.25
+; A n-dimensional table starts out as a regular empty table. It gains
+; dimensions by way of insertions--each key in the input list of keys
+; that is not present in the table results in the creation of a new subtable
+; at the appropriate level. Lookup proceeds in a similar manner, with one
+; further scenario: if lookup reaches a final value that is not a subtable
+; but there are still keys remaining to traverse, it also returns false.
+; The logic being that the input is a "path" to a value, and the given path
+; did not arrive at any particular value.
+; Note that a partial path to a subtable is still a valid path--the returned
+; value is the corresponding subtable.
+
+(define (insert-n! keys value table)
+  (let ((record (my-assoc (car keys) (cdr table))))
+    (if record
+      (if (null? (cdr keys))
+        (begin (set-cdr! record value)
+               'ok)
+        ; Problem: if record exists but is a pair (key value), but now needs
+        ; to turn into a subtable on the way to a value, the recursive call
+        ; sends the value as the `records` to `my-assoc`. This effectively is
+        ; the same as if this key did not exist, for a new empty subtable needs
+        ; to be allocated at this point, except that there is no need to modify
+        ; the current table (the key is already in it).
+        (if (list? record)
+          (insert-n! (cdr keys) value record)
+          (begin
+            (set-cdr! record '()) ; turn the (cons key val) record into a new list
+            (insert-n! (cdr keys) value record))))
+      (if (null? (cdr keys))
+        (set-cdr! table (cons (cons (car keys) value)
+                              (cdr table)))
+        (let ((subtable (list (car keys))))
+          (set-cdr! table (cons subtable (cdr table)))
+          (insert-n! (cdr keys) value subtable))))))
+
+(define n-table (make-table))
+(insert-n! (list 'a 'f 'x) 1337 n-table)
+(insert-n! (list 'a 'g 'x) 1234 n-table)
+(display n-table) ; (*table* (a (g (x . 1234))
+                  ;             (f (x . 1337))))
+(insert-n! (list 'a 'f) 'bob n-table)
+(display n-table) ; (*table* (a (g (x . 1234))
+                  ;             (f . bob)))
+(insert-n! (list 'a 'f 'y 'p) 'lol n-table)
+(display n-table) ; (*table* (a (g (x . 1234))
+                  ;             (f (y (p . lol)))))    :)
