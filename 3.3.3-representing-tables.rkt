@@ -237,6 +237,8 @@
 (display n-table) ; (*table* (a (g (x . 1234))
                   ;             (f . bob)))
 (insert-n! (list 'a 'f 'y 'p) 'lol n-table)
+(insert-n! (list 'a 'f 'x) 'dad n-table)
+(insert-n! (list 'a 'f 'z) 'bro n-table)
 (display n-table) ; (*table* (a (g (x . 1234))
                   ;             (f (y (p . lol)))))    :)
 
@@ -259,4 +261,8 @@
 ;   #f)))
 
 (lookup-n (list 'a 'g 'x) n-table) ; 1234
-(lookup-n (list 'a 'f) n-table) ; (mcons (mcons 'y (mcons (mcons 'p 'lol) '())) '()) hmm
+(lookup-n (list 'a 'f) n-table)
+; (mcons (mcons 'z 'bro) (mcons (mcons 'x 'dad) (mcons (mcons 'y (mcons (mcons 'p 'lol) '())) '())))
+(display (lookup-n (list 'a 'f) n-table)) ; ((z . bro) (x . dad) (y (p . lol)))
+; a->f is a table containing two pairs and a subtable
+
