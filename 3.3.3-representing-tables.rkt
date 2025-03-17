@@ -204,12 +204,13 @@
 ; value is the corresponding subtable.
 
 (define (insert-n! keys value table)
-  (let ((record (my-assoc (car keys) (cdr table))))
+  (let ((record (my-assoc (car keys) (cdr table)))
+        (final-key (null? (cdr keys))))
     (if record
-      (if (null? (cdr keys))
+      (if final-key
         (begin (set-cdr! record value)
                'ok)
-        ; Problem: if record exists but is a pair (key value), but now needs
+        ; Problem: if record exists and is a pair (key value), but now needs
         ; to turn into a subtable on the way to a value, the recursive call
         ; sends the value as the `records` to `my-assoc`. This effectively is
         ; the same as if this key did not exist, for a new empty subtable needs
@@ -220,7 +221,7 @@
           (begin
             (set-cdr! record '()) ; turn the (cons key val) record into a new list
             (insert-n! (cdr keys) value record))))
-      (if (null? (cdr keys))
+      (if final-key
         (set-cdr! table (cons (cons (car keys) value)
                               (cdr table)))
         (let ((subtable (list (car keys))))
@@ -238,3 +239,24 @@
 (insert-n! (list 'a 'f 'y 'p) 'lol n-table)
 (display n-table) ; (*table* (a (g (x . 1234))
                   ;             (f (y (p . lol)))))    :)
+
+(define (lookup-n keys table)
+  (let ((record (my-assoc (car keys) (cdr table))))
+    (cond ((not record) #f)
+          ((null? (cdr keys))
+           (cdr record))
+          ((list? record)
+           (lookup-n (cdr keys) record))
+          (else #f))))
+
+; Equivalently, more nested:
+; (if record
+;   (if (null? (cdr keys))
+;     (cdr record)
+;     (if (list? record)
+;       (lookup-n (cdr keys) record)
+;       #f)) ; Reached a key/val pair, but there are keys remaining in the query
+;   #f)))
+
+(lookup-n (list 'a 'g 'x) n-table) ; 1234
+(lookup-n (list 'a 'f) n-table) ; (mcons (mcons 'y (mcons (mcons 'p 'lol) '())) '()) hmm
