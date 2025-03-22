@@ -266,3 +266,69 @@
 (display (lookup-n (list 'a 'f) n-table)) ; ((z . bro) (x . dad) (y (p . lol)))
 ; a->f is a table containing two pairs and a subtable
 
+; exercise 3.26
+(define (make-tree key value left right) (list key value left right))
+(define (node-key node) (car node))
+(define (node-value node) (cadr node))
+(define (set-value! node value) (set-car! (cdr node) value))
+(define (left-branch node) (caddr node))
+(define (right-branch node) (cadddr node))
+
+(define (make-tree-table)
+  (cons '*table '()))
+
+(define (table-empty? table)
+  (null? (cdr table)))
+
+(define (tree-insert! key value table)
+  (define (traverse node)
+    (cond ((= key (node-key node))
+           (set-value! node value))
+          ((> key (node-key node))
+           (if (null? (right-branch node))
+             (set-car! (cdddr node) (make-tree key value '() '()))
+             (traverse (right-branch node))))
+          ((< key (node-key node))
+           (if (null? (left-branch node))
+             (set-car! (cddr node) (make-tree key value '() '()))
+             (traverse (left-branch node))))))
+  (if (table-empty? table)
+    (set-cdr! table (make-tree key value '() '()))
+    (traverse (cdr table))))
+
+(define tree-table (make-tree-table))
+
+(tree-insert! 0 'zero tree-table)
+(tree-insert! -3 'minus-three tree-table)
+(tree-insert! -2 'minus-two tree-table)
+(tree-insert! -5 'minus-five tree-table)
+(tree-insert! 7 'seven tree-table)
+(tree-insert! 3 'three tree-table)
+(tree-insert! 5 'five tree-table)
+(tree-insert! 12 'twelve tree-table)
+(display tree-table)
+; (*table 0 zero
+;   L (-3 minus-three
+;       L (-5 minus-five () ())
+;       R (-2 minus-two () ()))
+;   R (7 seven
+;       L (3 three
+;           ()
+;           R (5 five () ()))
+;       R (12 twelve () ())))
+
+(define (tree-lookup key table)
+  (define (search node)
+    (cond ((null? node) #f)
+          ((= key (node-key node))
+           (node-value node))
+          ((> key (node-key node))
+           (search (right-branch node)))
+          ((< key (node-key node))
+           (search (left-branch node)))))
+  (search (cdr table)))
+
+(tree-lookup 3 tree-table) ; 'three
+(tree-lookup 12 tree-table) ; 'twelve
+(tree-lookup 17 tree-table) ; #f
+
