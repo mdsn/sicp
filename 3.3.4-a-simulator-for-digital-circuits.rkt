@@ -290,3 +290,64 @@
 (propagate) ; w 30 New value = 1
 (set-signal! u 1)
 (propagate) ; 'done     w already is 1
+
+; exercise 3.30
+(define the-agenda (make-agenda)) ; reset
+
+(define (full-adder a b c-in sum c-out)
+  (let ((s (make-wire))
+        (c1 (make-wire))
+        (c2 (make-wire)))
+    (half-adder b c-in s c1)
+    (half-adder a s sum c2)
+    (or-gate c1 c2 c-out)
+    'ok))
+
+; a ripple carry adder that assumes all three of as, bs and ss are
+; the same length.
+(define (ripple-carry-adder as bs ss c)
+  (if (null? as)
+    'ok
+    (let ((a (car as))
+          (b (car bs))
+          (s (car ss))
+          (c-in (make-wire)))
+      (full-adder a b c-in s c)
+      (ripple-carry-adder (cdr as) (cdr bs) (cdr ss) c-in))))
+
+(define (make-wires xs)
+  (if (null? xs)
+    '()
+    (let ((w (make-wire)))
+      (if (= 1 (car xs))
+        (begin (set-signal! w 1)
+               (cons w (make-wires (cdr xs))))
+        (cons w (make-wires (cdr xs)))))))
+
+(define as (make-wires '(0 1 1 0 0 1 0 0))) ; 100
+(define bs (make-wires '(1 0 1 0 0 0 1 0))) ; 162
+(define ss (make-wires '(0 0 0 0 0 0 0 0))) ; expected sum = 00000110, carry = 1
+(define c (make-wire))
+
+(probe 'c c)
+(map (lambda (s) (probe 's s))
+     ss)
+
+(ripple-carry-adder as bs ss c)
+
+(propagate)
+; s 8 New value = 1
+; s 8 New value = 1
+; s 8 New value = 1
+; s 16 New value = 1
+; s 16 New value = 1
+; s 16 New value = 0
+; s 32 New value = 0
+; c 40 New value = 1
+; s 48 New value = 0'done
+
+(get-signal c) ; 1
+(map (lambda (s) (get-signal s)) ss)
+; (mcons 0 (mcons 0 (mcons 0 (mcons 0 (mcons 0 (mcons 1 (mcons 1 (mcons 0 '()))))))))
+; result = 00000110, carry 1 :)
+
