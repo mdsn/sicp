@@ -351,3 +351,71 @@
 ; (mcons 0 (mcons 0 (mcons 0 (mcons 0 (mcons 0 (mcons 1 (mcons 1 (mcons 0 '()))))))))
 ; result = 00000110, carry 1 :)
 
+; exercise 3.31
+; Recall the half adder from above:
+;
+;    (define (half-adder a b s c)
+;      (let ((d (make-wire))
+;            (e (make-wire)))
+;        (or-gate a b d)
+;        (and-gate a b c)
+;        (inverter c e)
+;        (and-gate d e s)
+;        'ok))
+;
+; Recall also that the instantiation of each gate pushes an action into the
+; agenda to be run on a signal change on each of the input wires. Let us look
+; at the agenda after the half adder is instantiated:
+(define the-agenda (make-agenda))
+(define a (make-wire))
+(define b (make-wire))
+(define s (make-wire))
+(define c (make-wire))
+(half-adder a b s c)
+(display (segments the-agenda))
+; ((2 (#<procedure>) #<procedure>)
+;  (3 (#<#<#<#<procedure>) #<procedure>)
+;  (5 (#<#<procedure>) #<procedure>))
+(display (current-time the-agenda)) ; 0
+; Nothing has happened yet--we haven't changed a signal--yet there are a few
+; segments already to be run in the agenda. If we propagate now, the current
+; time of the simulation will be advanced one full half-adder delay:
+(propagate)
+(display (current-time the-agenda)) ; 5
+; Thus one of the effects of running actions at the time they are registered
+; is to consume an initial chunk of time. Most importantly, consider the
+; real initial state of the components of a half adder, particularly the
+; inverter. The initial state of its input is 0, so the initial state of
+; its output wire has to be 1. This only happens if we already propagate the
+; initial signals through the system. If we don't, then both the input and
+; output of the inverter will be 0 as the simulation starts, breaking a
+; fundamental invariant of the gate. When we turn the inverter input to 1,
+; it will try to negate its input and change it to 0, but it's already 0!
+; It will need a couple of clicks until it works, and this may extend the
+; more inverters there are in the circuit.
+
+; exercise 3.32
+; The agenda keeps the actions on each time segment in a queue. What would
+; happen if they were kept in a stack instead? Let's look at the and-gate
+; and imagine the inputs change from 0,1 to 1,0 in the same time segment.
+; Let's say that at some time t, the inputs of our and-gate are 0,1. Two
+; signal changes push actions to the agenda stack for the next time segments.
+; The first action to be pushed is a change of input A from 0 to 1, the
+; following is a change of input B from 1 to 0.
+;
+;   (and-gate a b out)
+;   (set-signal! a 0)
+;   (set-signal! b 1)
+;   (propagate)
+;   (set-signal! a 1)
+;   (set-signal! b 0)
+;   (propagate)
+;
+; The first action to run is the setting of b <- 0. This means temporarily,
+; the and-gate is in 0,0 state and output does not fire a 1. The subsequent
+; change of a <- 1 has no effec either.
+;
+; With the queue, the execution of the second time segment first sets a <- 1,
+; momentarily turning the output to 1, before setting b <- 0 turns it off again.
+; The behavior of the circuit is entirely different, and does not represent
+; what the order of signal changes seems to imply.
