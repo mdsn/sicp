@@ -191,3 +191,69 @@
 
 (forget-value! C 'user) ; 'ignored
 
+; exercise 3.33
+(define (averager a b c)
+  (let ((sum (make-connector))
+        (two (make-connector))
+        (equals (make-connector)))
+    (constant 2 two)
+    (multiplier two c equals)
+    (adder a b equals)
+    'ok))
+
+(define a (make-connector))
+(define b (make-connector))
+(define c (make-connector))
+(probe "Average" c)
+(averager a b c)
+
+(set-value! a 5 'user) ; 'done
+(set-value! b 13 'user)
+; Probe: Average = 9
+; 'done
+
+(set-value! a 8 'user)
+; Contradiction (mcons 5 (mcons 8 '())) [,bt for context]
+
+(forget-value! a 'user) ; Probe: Average = ?'done
+(forget-value! b 'user) ; 'done
+(get-value c) ; 9   can't forget manually!
+
+; exercise 3.34
+; Louis' squarer:
+;
+;   (define (squarer a b) (multiplier a a b))
+;
+; The definition of squarer aliases multiplier's arguments m1 and m2.
+; The constraint can only be connected once to the connector because of
+; the `memq` check.
+; Now suppose we set a value on connector a. It does not have a value
+; so the first clause of the cond runs, and `value` and `informant` are
+; set on it. The multiplier is informed about the new value; within it,
+; both m1 and m2 have a value (they are the same connector), so the square
+; of a is propagated to b.
+
+(define (squarer a b) (multiplier a a b))
+(define a (make-connector))
+(define b (make-connector))
+(squarer a b) ; #<procedure>
+(probe "Square" b) ; #<procedure>
+(probe "Root" a) ; #<procedure>
+(set-value! a 3 'user)
+; Probe: Root = 3
+; Probe: Square = 9'done
+
+; But an expectation is that, the other way around, this connector will
+; be a square root constraint box.
+
+(forget-value! a 'user)
+; Probe: Root = ?
+; Probe: Square = ?'done
+(set-value! b 25 'user)
+; Probe: Square = 25'done
+;
+; Nothing on a--we have forgotten a so we only have one of the three
+; necessary values the multiplier cond understands. None of the value
+; handling scenarios in multiplier's `process-new-value` can handle
+; the situation, and we don't get the root propagated back.
+
