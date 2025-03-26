@@ -297,3 +297,51 @@
 (set-value! B 25 'user)
 ; Probe: Root = 5
 ; Probe: Square = 25'done
+
+; exercise 3.37
+(define (c+ x y)
+  (let ((z (make-connector)))
+    (adder x y z)
+    z))
+
+(define (c- x y)
+  (let ((z (make-connector)))
+    (adder y z x)
+    z))
+
+(define (c* x y)
+  (let ((z (make-connector)))
+    (multiplier x y z)
+    z))
+
+(define (c/ x y)
+  (let ((z (make-connector)))
+    (multiplier y z x)
+    z))
+
+(define (cv x)
+  (let ((z (make-connector)))
+    (constant x z)
+    z))
+
+(define (celsius-fahrenheit-converter x)
+  (c+ (c* (c/ (cv 9) (cv 5))
+          x)
+      (cv 32)))
+
+(define C (make-connector))
+(define F (celsius-fahrenheit-converter C))
+
+(probe "Celsius" C)
+(probe "Fahrenheit" F)
+(set-value! C 100 'user)
+; Probe: Celsius = 100
+; Probe: Fahrenheit = 212'done
+
+(forget-value! C 'user)
+; Probe: Celsius = ?
+; Probe: Fahrenheit = ?'done
+
+(set-value! F 75 'user)
+; Probe: Fahrenheit = 75
+; Probe: Celsius = 215/9'done
