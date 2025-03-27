@@ -190,4 +190,16 @@
 ; to an outdated value being used in one of the two transactions, and thus
 ; to a race condition.
 
-
+; 3.45
+; This was serialized-exchange:
+;
+;    (define (serialized-exchange a b)
+;      (let ((s (a 'serializer))
+;            (t (b 'serializer)))
+;        ((s (t exchange)) a b)))
+;
+; The serializers with which we are serializing exchange are the same ones
+; each account will use to serialize its internal transactions. But exchange
+; itself needs operations to run in each of the serializers. But neither the
+; withdrawal on s nor the deposit on t can run until exchange runs to completion
+; on t and then on s. We have a deadlock.
