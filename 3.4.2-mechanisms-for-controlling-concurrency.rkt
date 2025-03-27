@@ -203,3 +203,38 @@
 ; itself needs operations to run in each of the serializers. But neither the
 ; withdrawal on s nor the deposit on t can run until exchange runs to completion
 ; on t and then on s. We have a deadlock.
+
+; 3.46
+; We implement a naive test-and-set!:
+;
+;    (define (test-and-set! cell)
+;      (if (car cell)
+;        true
+;        (begin (set-car! cell true)
+;               false)))
+;
+; And consider the mutex implementation from the book that uses it:
+;
+;    (define (make-mutex)
+;      (let ((cell (list false)))
+;        (define (the-mutex m)
+;          (cond ((eq? m 'acquire)
+;                 (if (test-and-set! cell)
+;                   (the-mutex 'acquire)))
+;                ((eq? m 'release)
+;                 (clear! cell))))
+;        the-mutex))
+;
+;
+; Now we want to see it fail when two processes attempt to acquire the mutex
+; concurrently. Suppose the mutex is free (i.e., the cell is false)
+;
+;       P1                              P2
+;       Acquire                         Acquire
+;       test-and-set!                   test-and-set!
+;           (car cell)? false           (car cell)? false
+;                                           (set-car! cell true)
+;               (set-car! cell true)    Mutex acquired by P2
+;       Mutex acquired by P1. Uh oh
+;
+; The test-and-set must be atomic for this mechanism to work. :)
