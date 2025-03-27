@@ -169,3 +169,25 @@
 ; Final balances: A = 20, B = 10, C = 10. We effectively lost $20 due to two
 ; concurrent withdrawals from A stepping on each other.
 
+; 3.44
+; We have the following transfer procedure
+;
+;    (define (transfer from to amount)
+;      ((from 'withdraw) amount)
+;      ((to 'deposit) amount))
+;
+; With the added assumption that the withdraw and deposit transactions are
+; serialized. Two concurrent transactions can't withdraw more money than
+; there is in a single account, since only one of the withdrawals will run
+; at any one time; by the time the second one runs, the balance in the
+; account will be updated, preventing overdraft. The amount of each transaction
+; is fixed for each transfer, which avoids preemption during calculations
+; of intermediate values such as new balances. These are calculated inside
+; serialized procedures, so the total amount of money in the system is preserved
+; even if individual transactions are interleaved across transfers. This is
+; the fundamental difference with the exchange process as coded above: the
+; need to calculate the difference (an intermediate value) opens the door
+; to an outdated value being used in one of the two transactions, and thus
+; to a race condition.
+
+
