@@ -74,3 +74,98 @@
 ; of the `protected` serializer--it does not evaluate f (or its serialized
 ; wrapper). Therefore this change has no observable effect in what concurrency
 ; is allowed.
+
+; 3.43
+; Suppose exchanges run sequentially--that is, the observable behavior is as
+; if each ran to completion and in sequence. Exchanges of an account with itself
+; are a no-op. Every other possible exchange must be between one account and
+; either of the other two. Since the exchanges are sequential both account
+; balances are preserved after the exchange, which means all three account
+; balances are preserved after an arbitrary sequence of exchanges.
+;
+; Now, the first version of the exchange procedure:
+;
+;    (define (xchg a b)
+;      (let ((d (- (a 'balance)
+;                  (b 'balance))))
+;        ((a 'withdraw) d)
+;        ((b 'deposit) d)))
+;
+; We want to show how this implementation is susceptible to race conditions
+; that violate the expected consistency of the account balances.
+;
+;                          A           B            C           (Time flows
+;                         $10         $20          $30           downward)
+;
+; (xcgh A B)
+;    - Access balance A 10
+;    - Access balance B 20
+;                                       (xchg A C)
+;    - Compute difference -10               - Access balance A 10
+;    - Set d <- -10                         - Access balance C 30
+;                                           - Compute difference -20
+;                                           - Withdraw -20 from A; A = 30
+;    - Withdraw -10 from A, A = 40 (!)
+;                                           - Deposit -20 into C; C = 10
+;    - Deposit -10 into B, B = 10
+;
+; Final balances: A = 40, B = 10, C = 10. Although the total amount of cash
+; has been preserved, the account balances are no longer 10, 20, 30.
+;
+; Why is the sum of the balances preserved regardless of the (arbitrary) order
+; of execution of a non-serialized set of concurrent exchanges? Assuming the
+; transactions (withdraw/deposit) operations are atomic, then regardless of
+; the order in which they happen they always happen in mirrored pairs with
+; an equal difference. That is to say, the same amount of money is withdrawn
+; and deposited in the entire system, even if transactions preempt each other
+; and cause individual balances to become invalid. No money disappears from
+; the system, and no new money is introduced in it; in other words, the sum
+; of the balances of the accounts is preserved.
+;
+; Now we want to show that if we let go of the constraint that the transactions
+; themselves are serialized, then even the total amount of money in the system
+; is not guaranteed to be preserved. For this it will be useful to recall the
+; internals of deposit and withdraw:
+;
+;    (define (withdraw amount)
+;      (if (>= balance amount)
+;        (begin (set! balance (- balance amount))
+;               balance)
+;        "Insufficient funds"))
+;
+;    (define (deposit amount)
+;      (set! balance (+ balance amount))
+;      balance)
+;
+; The new conditions mean that either of these two procedures may be preempted
+; by other concurrent processes.
+;
+;               A=10                        B=20                        C=30
+; (xchg A B)
+;   Access A = 10
+;   Access B = 20
+;   Compute D = -10
+;   Set D = -10
+;   Withdraw -10 from A
+;       Balance A=10 >= -10? Yes
+;                                       (xchg A C)
+;                                           Access A = 10
+;                                           Access C = 30
+;                                           Compute D = -20
+;                                           Set D = -20
+;                                           Withdraw -20 from A
+;                                               Balance A=10 >= -20? Yes
+;                                               Compute new balance A'= 30
+;       Compute new balance A'= 20
+;                                               Set new balance     A = 30
+;       Set new balance     A = 20.   (!)
+;                                           Deposit -20 into C
+;                                               Compute new balance C''= 10
+;                                               Set new balance     C  = 10.
+;   Deposit -10 into B
+;       Compute new balance B'= 10
+;       Set new balance     B = 10.
+;
+; Final balances: A = 20, B = 10, C = 10. We effectively lost $20 due to two
+; concurrent withdrawals from A stepping on each other.
+
