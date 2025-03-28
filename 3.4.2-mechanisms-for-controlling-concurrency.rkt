@@ -238,3 +238,60 @@
 ;       Mutex acquired by P1. Uh oh
 ;
 ; The test-and-set must be atomic for this mechanism to work. :)
+
+; 3.47
+; The given n is the local state representing the number of "available
+; locks" to be acquired. When a request comes in to acquire one of the
+; locks, the mutex is first acquired to test-and-set the count; if no
+; locks are available the process busy-waits recursively. Releasing is
+; somewhat simpler, it only returns the lock to the count in a second
+; critical section.
+;
+;    (define (make-semaphore n)
+;      (let ((mutex (make-mutex)))
+;        (define (the-semaphore m)
+;          (cond ((eq? m 'acquire)
+;                 (mutex 'acquire)
+;                 (if (> n 0)
+;                   (begin (set! n (- n 1))
+;                          (mutex 'release))
+;                   (begin (mutex 'release)
+;                          (the-semaphore 'acquire))))
+;                ((eq? m 'release)
+;                 (mutex 'acquire)
+;                 (set! n (+ n 1))
+;                 (mutex 'release))))
+;        make-semaphore))
+;
+; Now with test-and-set! with the following semantics, assuming it is
+; atomic.
+;
+;    (define (test-and-set! cell)
+;      (if (car cell)
+;        true
+;        (begin (set-car! cell true)
+;               false)))
+;
+; We can generalize test and set to work on an integer cell instead,
+; abstracting away the mixture of mutexes and integer setting of the
+; first semaphore implementation.
+;
+;    (define (test-and-set! cell)
+;      (if (= 0 (car cell))
+;        true
+;        (begin (set-car! cell (- (car cell) 1)) ; Imagine this is atomic
+;               false)))
+;
+;    (define (unset! cell)
+;      (set-car! cell (+ (car cell) 1)))  ; So is this
+;
+;    (define (make-semaphore n)
+;      (let ((cell (list n)))
+;        (define (the-semaphore m)
+;          (cond ((eq? m 'acquire)
+;                 (if (test-and-set! cell)
+;                   (the-semaphore 'acquire)))
+;                ((eq? m 'release)
+;                 (unset! cell))))
+;        the-semaphore))
+
