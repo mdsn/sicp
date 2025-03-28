@@ -295,3 +295,36 @@
 ;                 (unset! cell))))
 ;        the-semaphore))
 
+; 3.48
+; This is the original serialized-exchange:
+;
+;    (define (serialized-exchange a b)
+;      (let ((s (a 'serializer))
+;            (t (b 'serializer)))
+;        ((s (t exchange)) a b)))
+;
+; Now, supposing accounts have some comparable account number, we want
+; to see why having serialized-exchange attempt to acquire a lock on the
+; lowest-numbered account first prevents a deadlock from happening on
+; multiple concurrent exchanges.
+;
+; A deadlock may happen when two concurrent processes try to exchange the
+; same two accounts in opposite directions. The issue is that each process
+; gets to acquire a lock on one of the accounts, and each process is stuck
+; waiting for the other to release the resource they need. By ordering the
+; accesses we guarantee both processes will attempt to acquire the same
+; lock first. Only one will succeed, which means the second account will
+; be available for the first one to arrive at its first critical section.
+;
+; Example implementation:
+;    (define (serialized-exchange a b)
+;      (define (sorted-accounts)
+;        (if (< (a 'number) (b 'number))
+;          (cons a b)
+;          (cons b a)))
+;      (let* ((accounts (sorted-accounts))
+;             (x (car accounts))
+;             (y (cdr accounts))
+;             (s (x 'serializer))
+;             (t (y 'serializer)))
+;        ((t (s exchange)) x y)))
