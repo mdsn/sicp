@@ -328,3 +328,12 @@
 ;             (s (x 'serializer))
 ;             (t (y 'serializer)))
 ;        ((t (s exchange)) x y)))
+
+; 3.49
+; Suppose we have a database system in which write operations lock an entire
+; record. One process locks record A with a query that attempts to write a
+; value that must be computed from a record referenced in record A.
+; Concurrently, another process attempts to write to record B a value that
+; depends on record A, also referenced in record B itself. Both processes
+; get to lock their respective target records, but they both must wait on each
+; other to finish their write to compute the value they must write. Deadlock.
