@@ -135,3 +135,59 @@
                                        (scale-stream S 5)))))
 
 (pull S 20) ; '(1 2 3 4 5 6 8 9 10 12 15 16 18 20 24 25 27 30 32 36)
+
+; 3.57
+; We are talking about this implementation of fibs:
+;
+;    (define (stream-map-n proc . argstreams)
+;      (if (stream-empty? (car argstreams))
+;        empty-stream
+;        (stream-cons
+;          (apply proc (map stream-first argstreams))
+;          (apply stream-map-n
+;                 (cons proc (map stream-rest argstreams))))))
+;
+;    (define (add-streams s t)
+;      (stream-map-n + s t))
+;
+;    (define fibs
+;      (stream-cons 0
+;                   (stream-cons 1
+;                                (add-streams (stream-rest fibs)
+;                                             fibs))))
+;
+; With the supposition that stream-cons is a special form with the following
+; semantics:
+;
+;    (define (stream-cons a b)
+;      (cons a (delay b))
+;
+; And with delay a special form using memoization:
+;
+;    (define (memo-proc proc)
+;      (let ((already-run? false)
+;            (result false))
+;        (lambda ()
+;          (if (not already-run?)
+;            (begin (set! result (proc))
+;                   (set! already-run? true)
+;                   result)
+;            result))))
+;
+;    (define (delay <exp>)
+;      (memo-proc (lambda () <exp>)))
+;
+;    (define (force delayed-object)
+;      (delayed-object))
+;
+; Each call to stream-map-n forces different parts of fibs twice. With
+; a memoizing delay, the second stream (the one that is further behind)
+; does not need to perform an addition to yield its car, for it was forced
+; immediately before. So a single addition is done for each new element
+; in the stream, except for the first two, for a total of n-2 additions
+; for the nth element, if n > 2.
+;
+; If delay is not memoizing, then stream-map-n does an addition but then
+; delays the forcing of two pieces of fibs, each of which is (after the
+; second element) a thunk that needs to evaluate two pieces of fibs. This
+; results in handwavy O(2^n) such evaluations.
