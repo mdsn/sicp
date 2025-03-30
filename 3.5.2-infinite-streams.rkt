@@ -191,3 +191,72 @@
 ; delays the forcing of two pieces of fibs, each of which is (after the
 ; second element) a thunk that needs to evaluate two pieces of fibs. This
 ; results in handwavy O(2^n) such evaluations.
+
+; 3.58
+(define (expand num den radix)
+  (stream-cons
+    (quotient (* num radix) den)
+    (expand (remainder (* num radix) den) den radix)))
+
+(pull (expand 1 7 10) 20) ; '(1 4 2 8 5 7 1 4 2 8 5 7 1 4 2 8 5 7 1 4)
+(pull (expand 3 8 10) 20) ; '(3 7 5 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0)
+
+; expand produces the decimals expansion of the fraction num/den.
+
+; 3.59
+(define (integrate-series coefficients)
+  (define (iter n as)
+    (if (stream-empty? as)
+      empty-stream
+      (stream-cons (* (/ 1 n) (stream-first as))
+                   (iter (+ n 1) (stream-rest as)))))
+  (iter 1 coefficients))
+
+(pull (integrate-series (stream 5 6 7 8 9)) 5) ; '(5 3 7/3 2 9/5)
+(pull (integrate-series fibs) 10) ; '(0 1/2 1/3 1/2 3/5 5/6 8/7 13/8 7/3 17/5)
+
+; The derivative of sin x is cos x, so integrating the series for cos x we
+; should get back sin x:
+(define sine-series
+  (stream-cons 0 (integrate-series cosine-series)))
+
+; The derivative of cos x is -sin x, same reasoning
+(define cosine-series
+  (stream-cons 1 (scale-stream (integrate-series sine-series) -1)))
+
+(pull sine-series 10) ; '(0 1 0 -1/6 0 1/120 0 -1/5040 0 1/362880)
+(pull cosine-series 10) ; '(1 0 -1/2 0 1/24 0 -1/720 0 1/40320 0)   (?)
+
+; 3.60
+; We have two infinite series of coefficients a = a_0 + ... + a_n and
+; b = b_0 + ... + b_n. Their product can be computed in the same way finite
+; sums are multiplied. For example
+;   (a+b+c) (x+y+z) = a(x+y+z) + (b+c) (x+y+z)
+;                   = ax + a(y+z) + (b+c) (x+y+z)
+; We can take the first product as an element in the result stream, and the
+; subsequent terms as a further stream addition of a scaling and another
+; series multiplication.
+(define (mul-series a b)
+  (let ((a0 (stream-first a))
+        (b0 (stream-first b)))
+    (stream-cons (* a0 b0)
+                 (add-streams (scale-stream (stream-rest b) a0)
+                              (mul-series b (stream-rest a))))))
+
+
+(define sin2 (mul-series sine-series sine-series))
+(define cos2 (mul-series cosine-series cosine-series))
+(pull sin2 10) ; '(0 0 1 0 -1/3 0 2/45 0 -1/315 0)
+(pull cos2 10) ; '(1 0 -1 0 1/3 0 -2/45 0 1/315 0)
+(pull (add-streams sin2 cos2) 10) ; '(1 0 0 0 0 0 0 0 0 0) (?)
+
+; 3.61
+(define (invert-unit-series s)
+  (stream-cons 1
+               (scale-stream (mul-series (stream-rest s) (invert-unit-series s))
+                             -1)))
+
+(pull (invert-unit-series cosine-series) 10) ; '(1 0 1/2 0 5/24 0 61/720 0 277/8064 0)
+(pull (mul-series (invert-unit-series cosine-series)
+                  cosine-series) 10) ; '(1 0 0 0 0 0 0 0 0 0)
+
