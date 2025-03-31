@@ -108,11 +108,15 @@
 (pull factorials 5) ; '(1 2 6 24 120)
 
 ; 3.55
-(define partial-sums
-  (stream-cons 1
-               (add-streams partial-sums (stream-rest integers))))
+; s_0, s_0 + s_1, s_0 + s_1 + s_2, ...
+(define (partial-sums s)
+  (define (iter t acc)
+    (let ((acc (+ acc (stream-first t))))
+      (stream-cons acc
+                   (iter (stream-rest t) acc))))
+  (iter s 0))
 
-(pull partial-sums 5) ; '(1 3 6 10 15)
+(pull (partial-sums integers) 10) ; '(1 3 6 10 15 21 28 36 45 55)
 
 ; 3.56
 (define (merge s t)
