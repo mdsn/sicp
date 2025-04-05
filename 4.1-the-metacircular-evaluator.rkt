@@ -241,4 +241,30 @@
 ;    (define (operator exp) (cadr exp))
 ;    (define (operands exp) (cddr exp))
 
-
+; 4.3
+; To rewrite eval in a data directed fashion, after the style
+; of the differentiation procedure of exercise 2.73, we would
+; start by defining a table of evaluation rules keyed by the
+; type of an expression (the type tag that answers predicates
+; such as quoted? and assignment?).
+;
+; Instead of a long list of conditions, `eval` would assume
+; the expression to evaluate possesses its own type tag--with
+; it, eval would lookup the table for the evaluation procedure
+; for this expression, and run it.
+;
+;    (define (install-eval-lambda)
+;      (define (eval-rule exp env)
+;        (make-procedure (lambda-parameters exp)
+;                        (lambda-body exp)
+;                        env))
+;      (put 'eval 'lambda eval-rule)
+;      'done)
+;
+;    (define (type-tag exp)
+;      (car exp))
+;
+;    (define (eval exp env)
+;      (...)  ; Evaluations of self-evaluating expressions
+;             ; and any other expressions with no type tag.
+;      ((get 'eval (type-tag exp)) exp env))
