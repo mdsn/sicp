@@ -75,4 +75,22 @@
 (stream-ref (gen-solve-2nd f 0.001 1 1)
             100) ; 1.0998343799830568
 
+; 3.80
+(define (RLC R L C vc0 il0)
+  (define dt 0.1)
+  (define vc (integral (delay dvc) vc0 dt))
+  (define il (integral (delay dil) il0 dt))
+  (define dil (add-streams (stream-scale vc (/ 1 L))
+                           (stream-scale il (- (/ R L)))))
+  (define dvc (stream-scale il (- (/ 1 C))))
+  (cons vc il))
+
+(define RLC1 (RLC 1 1 0.2 10 0))
+
+(define Vc (car RLC1))
+(define iL (cdr RLC1))
+
+(stream-ref Vc 100) ; -0.745637507868882
+(stream-ref iL 100) ; -0.18759152927477196 (?)
+
 
