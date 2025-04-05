@@ -15,6 +15,9 @@
         ((application? exp)
          (apply (eval (operator exp) env)
                 (list-of-values (operands exp) env)))
+        ; 4.4
+        ((and? exp) (eval-and exp env))
+        ((or? exp) (eval-or exp env))
         (else
           (error "Unknown expression type -- EVAL" exp))))
 
@@ -268,3 +271,30 @@
 ;      (...)  ; Evaluations of self-evaluating expressions
 ;             ; and any other expressions with no type tag.
 ;      ((get 'eval (type-tag exp)) exp env))
+
+; 4.4
+(define (and? exp)
+  (tagged-list? exp 'and))
+
+(define (or? exp)
+  (tagged-list? exp 'or))
+
+; Our language will reuse the operator/operand related
+; accessors for logical operators as well.
+
+(define (eval-and exp env)
+  (define (evaluate exps)
+    (cond ((no-operands? exps) true)            ; no operands: return true
+          ((no-operands? (rest-operands exps))  ; final operand: return its value
+           (eval (first-operand exps) env))
+          ((not (eval (first-operand exps) env)) false)
+          (else (eval-and (rest-operands exps) env))))
+  (evaluate (operands exp)))
+
+(define (eval-or exp env)
+  (define (evaluate exps)
+    (cond ((no-operands? exps) false)
+          ((eval (first-operand exps) env) => identity)
+          (else (eval-or (rest-operands exps) env))))
+  (evaluate (operands exp)))
+
