@@ -433,6 +433,14 @@
 ;    (let ((a 1))
 ;      (let ((b (+ a 1)))
 ;        (+ a b)))
+;
+; Say we attempt to get away with evaluating the result of this transformation:
+;
+;   (eval (let*->nested-lets exp) env)
+;
+; This evaluation would expand the let* into a sequence of nested lets; since
+; let can be evaluated already by transforming it into a sequence of lambda
+; applications, this ought to be enough to evaluate let* forms.
 
 ; We need only a let*? predicate--the syntax is the same as that of let,
 ; so its variables and body accessors will still work.
