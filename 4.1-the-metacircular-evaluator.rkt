@@ -156,6 +156,12 @@
 (define (make-begin seq)
   (cons 'begin seq))
 
+; 4.5 We don't strictly need a make-application constructor
+; since by definition it's any compound expression that is
+; not one of the others.
+(define (make-application operator operands)
+  (list operator operands))
+
 (define (application? exp)
   (pair? exp))
 
@@ -180,30 +186,70 @@
 (define (cond-clauses exp)
   (cdr exp))
 
+; 4.5
+(define (cond-arrow-clause? clause)
+  (tagged-list? clause 'arrow))
+
 (define (cond-else-clause? clause)
-  (eq? (cond-predicate clause) 'else))
+  (tagged-list? clause 'else))
+
+(define (cond-default-clause? clause)
+  (tagged-list? clause 'default))
 
 (define (cond-predicate clause)
-  (car clause))
+  (cadr clause))
 
 (define (cond-actions clause)
-  (cdr clause))
+  (cddr clause))
 
 (define (cond->if exp)
   (expand-clauses (cond-clauses exp)))
 
+;(define (expand-clauses clauses)
+;  (if (null? clauses)
+;    'false
+;    (let ((first (car clauses))
+;          (rest (cdr clauses)))
+;      (if (cond-else-clause? first)
+;        (if (null? rest)
+;          (sequence->exp (cond-actions first))
+;          (error "ELSE clause isn't last -- COND->IF" clauses))
+;        (make-if (cond-predicate first)
+;                 (sequence->exp (cond-actions first))
+;                 (expand-clauses rest))))))
+
+; 4.5
 (define (expand-clauses clauses)
   (if (null? clauses)
     'false
     (let ((first (car clauses))
           (rest (cdr clauses)))
-      (if (cond-else-clause? first)
-        (if (null? rest)
-          (sequence->exp (cond-actions first))
-          (error "ELSE clause isn't last -- COND->IF" clauses))
-        (make-if (cond-predicate first)
-                 (sequence->exp (cond-actions first))
-                 (expand-clauses rest))))))
+      (cond ((cond-default-clause? first)
+             (make-if (cond-predicate first)
+                      (sequence-exp (cond-actions first))
+                      (expand-clauses rest)))
+            ; 4.5 The cond-actions of an arrow clause is a lambda. We don't have
+            ; a `let` yet, but it can be simulated by application to a lambda.
+            ; Evaluate the predicate and extract the recipient (the car of the
+            ; cond-actions), and provide them as the arguments to an application
+            ; of a lambda that executes the if: if the predicate-value is truthy,
+            ; it is given to the recipient procedure; otherwise the clause
+            ; expansion continues.
+            ((cond-arrow-clause? first)
+             (make-application
+               (make-lambda '(predicate-value recipient)
+                            (list (make-if 'predicate-value
+                                           '(recipient predicate-value) ; does this also require a
+                                                                        ; make-application?
+                                           (expand-clauses rest))))
+               (list (eval (cond-predicate first) env)
+                     (car (cond-actions first)))))
+            ((cond-else-clause? first)
+             (if (null? rest)
+               (sequence-exp (cond-actions first))
+               (error "ELSE clause isn't last -- COND->IF" clauses)))
+            (else
+              (error "Unknown clause type -- COND->IF" first))))))
 
 ; 4.1
 (define (list-of-values-l2r exps env)
@@ -298,3 +344,18 @@
           (else (eval-or (rest-operands exps) env))))
   (evaluate (operands exp)))
 
+; 4.5
+; Cond clauses look like this: ('cond (clauses ...)); each clause
+; is either ((predicate) (actions ...)) or ('else (actions ...)).
+; To support the new kind of clause, the arrow variant, a type tag
+; is necessary within clauses. For lack of a better word, we will
+; call the "default" kind of clause 'default:
+;
+;   ('default (predicate) (actions ...))
+;   ('arrow (predicate) (actions ...))
+;   ('else '() (actions ...))
+;
+; This changes the way 'else work until exercise 4.5, where it took
+; the place of the predicate in the default type of clause. With this
+; new syntax, 'else will still have an empty predicate to simplify
+; the cond-actions accessor.
