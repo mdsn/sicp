@@ -42,6 +42,9 @@
     (cons (eval (first-operand exps) env)
           (list-of-values (rest-operands exps) env))))
 
+(define (true? value)
+  (eq? true value))
+
 (define (eval-if exp env)
   (if (true? (eval (if-predicate exp) env))
     (eval (if-consequent exp) env)
@@ -67,6 +70,7 @@
 (define (self-evaluating? exp)
   (cond ((number? exp) true)
         ((string? exp) true)
+        ((boolean? exp) true)  ; for now?
         (else false)))
 
 (define (variable? exp)
@@ -112,11 +116,21 @@
 (define (lambda-parameters exp)
   (cadr exp))
 
+; This is different from the definition in the book which uses
+; (cons 'lambda (cons params body)) as the definition of make-lambda.
 (define (lambda-body exp)
-  (cddr exp))
+  (caddr exp))
 
 (define (make-lambda parameters body)
-  (cons 'lambda (cons parameters body)))
+  (list 'lambda parameters body))
+
+; (define test-lambda
+;   (make-lambda (list 'a 'b)
+;                (list + 'a 'b))) ; '(lambda (a b) (#<procedure:+a b))
+;
+; (lambda? test-lambda) ; #t
+; (lambda-parameters test-lambda) ; '(a b)
+; (lambda-body test-lambda) ; '(#<procedure:+a b)
 
 (define (if? exp)
   (tagged-list? exp 'if))
@@ -136,7 +150,7 @@
   (list 'if predicate consequent alternative))
 
 (define (begin? exp)
-  (tagged-list exp 'begin))
+  (tagged-list? exp 'begin))
 
 (define (begin-actions exp)
   (cdr exp))
@@ -350,7 +364,7 @@
 ; the cond-actions accessor.
 
 ; 4.6
-; The syntax for let expressions is
+; The syntax for let expressions is (cons 'let (cons ids body)):
 ;
 ;   ('let (list (cons var expr) (cons var expr) ...)
 ;     (body))
@@ -360,6 +374,12 @@
 ; all the vars and all the exprs need to be collected into two separate
 ; lists to become the list of parameters of a lambda and the arguments
 ; of the application, respectively.
+;
+; We need a make-let operation to put together a let. Although our current
+; evaluation strategy will rewrite it into a lambda, that need not be the
+; case and it's good modularity not to assume such a transformation.
+(define (make-let ids body)
+  (list 'let ids body))
 
 (define (let? exp)
   (tagged-list? exp 'let))
@@ -389,3 +409,68 @@
   (make-application
     (make-lambda ids (let-body exp))
     exps)))
+
+; (define test-let
+;   (make-let (list (cons 'a 1) (cons 'b 2))
+;             (list + 'a 'b))) ; '(let ((a . 1) (b . 2)) (#<procedure:+a b))
+; (let? test-let) ; #t
+; (let-variables test-let) ; '((a . 1) (b . 2))
+; (let-body test-let) ; '(#<procedure:+ a b)
+;
+; This will require revision one application is implemented
+; (let->combination test-let) ; '((lambda (a b) #<procedure:+a b) (1 2))
+
+; 4.7
+; If we didn't have let* we could nest regular let expressions to achieve
+; the same sequential evaluation:
+;
+;   (let* ((a 1)
+;          (b (+ a 1))
+;     (+ a b))
+;
+; Is equivalent to
+;
+;    (let ((a 1))
+;      (let ((b (+ a 1)))
+;        (+ a b)))
+
+; We need only a let*? predicate--the syntax is the same as that of let,
+; so its variables and body accessors will still work.
+(define (let*? exp)
+  (tagged-list? exp 'let*))
+
+; This rewriting requires the original let* body to be the body of the
+; innermost let--it requires every identifier to be in its environment.
+(define (let*->nested-lets exp)
+  (define (nest ids)
+    (if (null? (cdr ids))
+      (make-let ids (let-body exp))
+      (make-let (list (car ids))
+                (nest (cdr ids)))))
+  (nest (let-variables exp)))
+
+; (define test-let
+;   (let*->nested-lets
+;     (list 'let* (list (cons 'a 1)
+;                       (cons 'b '(+ a 1))
+;                       (cons 'c '(+ b 2)))
+;                 (list + 'a 'b 'c))))
+;
+; '(let ((a . 1))
+;    (let ((b + a 1))
+;      (let ((c + b 2))
+;        (#<procedure:+a b c))))
+
+; Some tests:
+; self-evaluating:
+; (eval 3 '()) ; 3
+; (eval "jaja" '()) ; "jaja"
+
+; quoted:
+; (eval (list 'quote 'q) '()) ; 'q
+; (eval (list 'quote '(a b c)) '()) ; '(a b c)
+
+; if:
+; (eval-if (make-if true "yes" "no") '()) ; "yes"
+; (eval-if (make-if false "yes" "no") '()) ; "no"
+
