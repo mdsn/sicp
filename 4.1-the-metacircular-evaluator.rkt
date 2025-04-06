@@ -18,6 +18,8 @@
         ; 4.4
         ((and? exp) (eval-and exp env))
         ((or? exp) (eval-or exp env))
+        ; 4.6
+        ((let? exp) (eval (let->combination exp) env))
         (else
           (error "Unknown expression type -- EVAL" exp))))
 
@@ -205,19 +207,6 @@
 (define (cond->if exp)
   (expand-clauses (cond-clauses exp)))
 
-;(define (expand-clauses clauses)
-;  (if (null? clauses)
-;    'false
-;    (let ((first (car clauses))
-;          (rest (cdr clauses)))
-;      (if (cond-else-clause? first)
-;        (if (null? rest)
-;          (sequence->exp (cond-actions first))
-;          (error "ELSE clause isn't last -- COND->IF" clauses))
-;        (make-if (cond-predicate first)
-;                 (sequence->exp (cond-actions first))
-;                 (expand-clauses rest))))))
-
 ; 4.5
 (define (expand-clauses clauses)
   (if (null? clauses)
@@ -359,3 +348,44 @@
 ; the place of the predicate in the default type of clause. With this
 ; new syntax, 'else will still have an empty predicate to simplify
 ; the cond-actions accessor.
+
+; 4.6
+; The syntax for let expressions is
+;
+;   ('let (list (cons var expr) (cons var expr) ...)
+;     (body))
+;
+; In other words, a tagged list with two elements, the expressions and
+; the body. In order to implement the let->combination transformation,
+; all the vars and all the exprs need to be collected into two separate
+; lists to become the list of parameters of a lambda and the arguments
+; of the application, respectively.
+
+(define (let? exp)
+  (tagged-list? exp 'let))
+
+(define (let-variables exp)
+  (cadr exp))
+
+(define (let-body exp)
+  (caddr exp))
+
+; transform the list of (id exp) bindings into two lists, one of ids
+; and one of exps.
+(define (collect bindings)
+  (define (split xs ids exps)
+    (if (null? xs)
+      (list (reverse ids)
+            (reverse exps))
+      (split (cdr xs)
+             (cons (caar xs) ids)
+             (cons (cdar xs) exps))))
+  (split bindings '() '()))
+
+(define (let->combination exp)
+  (let* ((ids-exps (collect (let-variables exp)))
+         (ids (car ids-exps))
+         (exps (cadr ids-exps)))
+  (make-application
+    (make-lambda ids (let-body exp))
+    exps)))
