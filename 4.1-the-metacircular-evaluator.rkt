@@ -231,22 +231,26 @@
              (make-if (cond-predicate first)
                       (sequence-exp (cond-actions first))
                       (expand-clauses rest)))
-            ; 4.5 The cond-actions of an arrow clause is a lambda. We don't have
-            ; a `let` yet, but it can be simulated by application to a lambda.
-            ; Evaluate the predicate and extract the recipient (the car of the
-            ; cond-actions), and provide them as the arguments to an application
-            ; of a lambda that executes the if: if the predicate-value is truthy,
-            ; it is given to the recipient procedure; otherwise the clause
-            ; expansion continues.
+
+            ; 4.5 The cond-actions of an arrow clause is a procedure. The
+            ; rewritten form must be such that the evaluator keeps the value of
+            ; the predicate in an environment to use it as an argument to said
+            ; procedure, if the predicate is truthy. The natural way to write
+            ; this would be with `let`, but it is not implemented until 4.6.
+            ; Since `let` itself is a derived expression, we can use the more
+            ; fundamental form of a lambda to have the evaluator evaluate the
+            ; predicate as an argument, thus giving it a name. The lambda is
+            ; immediately applied and causes the evaluation of the expected
+            ; `if` derivation.
             ((cond-arrow-clause? first)
              (make-application
                (make-lambda '(predicate-value recipient)
                             (list (make-if 'predicate-value
-                                           '(recipient predicate-value) ; does this also require a
-                                                                        ; make-application?
+                                           (make-application recipient predicate-value)
                                            (expand-clauses rest))))
-               (list (eval (cond-predicate first) env)
+               (list (cond-predicate first)
                      (car (cond-actions first)))))
+
             ((cond-else-clause? first)
              (if (null? rest)
                (sequence-exp (cond-actions first))
