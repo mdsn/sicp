@@ -1,3 +1,7 @@
+(#%require racket/base)
+; Don't print lists with mcons.
+(print-as-expression #f)
+
 (define (eval exp env)
   (cond ((self-evaluating? exp) exp)
         ((variable? exp) (lookup-variable-value exp env))
@@ -86,6 +90,9 @@
   (if (pair? exp)
     (eq? (car exp) tag)
     false))
+
+(define (make-assignment var val)
+  (list 'set! var val))
 
 (define (assignment? exp)
   (tagged-list? exp 'set!))
@@ -382,17 +389,38 @@
 ; We need a make-let operation to put together a let. Although our current
 ; evaluation strategy will rewrite it into a lambda, that need not be the
 ; case and it's good modularity not to assume such a transformation.
+;
+; (define (make-let ids body)
+;   (list 'let ids body))
+
+; 4.8 Named let has one more component, a symbol bound to a procedure that can
+; be called from within the let body, for recursive computation where, without
+; it, an explicit lambda would have to be defined and called with initial
+; values. We will have all lets be of the form ('let var ids body). Non named
+; lets will have var equal to '(). This simplifies accessors, and lets us write
+; make-let in terms of make-named-let.
+(define (make-named-let var ids body)
+  (list 'let var ids body))
+
+; 4.8 The named-let? predicate does what it says.
+(define (named-let? exp)
+  (and (let? exp) (symbol? (cadr exp))))
+
+; 4.8 make-let can be rewritten in terms of make-named-let.
 (define (make-let ids body)
-  (list 'let ids body))
+  (make-named-let '() ids body))
 
 (define (let? exp)
   (tagged-list? exp 'let))
 
-(define (let-variables exp)
+(define (let-var exp)
   (cadr exp))
 
-(define (let-body exp)
+(define (let-ids exp)
   (caddr exp))
+
+(define (let-body exp)
+  (cadddr exp))
 
 ; transform the list of (id exp) bindings into two lists, one of ids
 ; and one of exps.
@@ -406,19 +434,31 @@
              (cons (cdar xs) exps))))
   (split bindings '() '()))
 
+; 4.6
 (define (let->combination exp)
-  (let* ((ids-exps (collect (let-variables exp)))
+  (let* ((ids-exps (collect (let-ids exp)))
+         ; Separate the identifiers and arguments
          (ids (car ids-exps))
-         (exps (cadr ids-exps)))
-  (make-application
-    (make-lambda ids (let-body exp))
-    exps)))
+         (exps (cadr ids-exps))
+         ; Give a name to the body
+         (proc (make-lambda ids (let-body exp))))
+    ; 4.8 Ensure the location for the variable is created in an environment
+    ; where the binding values will see it once they are evaluated. This is a
+    ; restricted form of letrec, as explained in "An Introduction to Scheme and
+    ; its Implementation".
+    (if (named-let? exp)
+      (make-let
+        (list (cons (let-var exp) 'dummy))
+        (list
+          (make-assignment (let-var exp) proc)
+          (make-application proc exps)))
+      (make-application proc exps))))
 
 ; (define test-let
 ;   (make-let (list (cons 'a 1) (cons 'b 2))
 ;             (list + 'a 'b))) ; '(let ((a . 1) (b . 2)) (#<procedure:+a b))
 ; (let? test-let) ; #t
-; (let-variables test-let) ; '((a . 1) (b . 2))
+; (let-ids test-let) ; '((a . 1) (b . 2))
 ; (let-body test-let) ; '(#<procedure:+ a b)
 ;
 ; This will require revision one application is implemented
@@ -459,7 +499,7 @@
       (make-let ids (let-body exp))
       (make-let (list (car ids))
                 (nest (cdr ids)))))
-  (nest (let-variables exp)))
+  (nest (let-ids exp)))
 
 ; (define test-let
 ;   (let*->nested-lets
@@ -473,16 +513,55 @@
 ;      (let ((c + b 2))
 ;        (#<procedure:+a b c))))
 
-; Some tests:
-; self-evaluating:
-; (eval 3 '()) ; 3
-; (eval "jaja" '()) ; "jaja"
-
-; quoted:
-; (eval (list 'quote 'q) '()) ; 'q
-; (eval (list 'quote '(a b c)) '()) ; '(a b c)
-
-; if:
-; (eval-if (make-if true "yes" "no") '()) ; "yes"
-; (eval-if (make-if false "yes" "no") '()) ; "no"
+; 4.8 A little test
+; (define test-named-let
+;   (make-named-let 'fn
+;                   (list (cons 'a 1))
+;                   (make-if (list = 'a 5)
+;                            'done
+;                            (list 'fn (list + 'a 1)))))
+;
+; Remember that here `let` is really the quoted 'let, as are `fn`, `if`, `done`
+; and `a`. It is just a representation of the named let form.
+;
+; (print test-named-let)
+; (let fn
+;      ((a . 1))
+;      (if (#<procedure:=a 5) done (fn (#<procedure:+a 1))))
+;
+; A named let is syntactic sugar for letrec, a form similar to let with the
+; provision that the locations and bindings are created before the values of
+; the let are evaluated. The key point is that with a regular let, the lambda
+; is evaluated in the environment outside the let body, and thus is unable to
+; refer to itself.
+; The solution to this is letrec. It creates the environment before evaluating
+; the values, so this evaluation happens inside the new environment. As
+; explained in "An Introduction to Scheme and its Implementation", in the
+; section "Variants of let: letrec and let*", letrec is equivalent to a regular
+; let that initializes its bindings with dummy values then assigns them in the
+; body:
+;
+;     (let ([fn 'dummy])
+;       (set! fn (lambda (a) (if (= a 5) 'done (fn (+ a 1)))))
+;       ((lambda (a) (if (= a 5) 'done (fn (+ a 1)))) 1)) ; done
+;
+; Since we do not have a letrec in our precarious lisp, we can leverage this
+; construction to implement the less general named let with it, supporting a
+; single binding that calls its body with the values as parameters.
+;
+; (let->combination test-named-let)
+; (let
+;   ()
+;   ((fn . dummy))
+;   ((set!
+;      fn
+;      (lambda (a)
+;        (if (#<procedure:=a 5)
+;          done
+;          (fn (#<procedure:+a 1)))))
+;    ((lambda (a)
+;       (if (#<procedure:=a 5)
+;         done
+;         (fn (#<procedure:+a 1))))
+;     (1))))
 
