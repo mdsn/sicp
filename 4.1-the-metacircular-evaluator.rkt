@@ -451,7 +451,7 @@
         (list (cons (let-var exp) 'dummy))
         (list
           (make-assignment (let-var exp) proc)
-          (make-application proc exps)))
+          (make-application (let-var exp) exps)))
       (make-application proc exps))))
 
 ; (define test-let
@@ -514,13 +514,13 @@
 ;        (#<procedure:+a b c))))
 
 ; 4.8 A little test
-; (define test-named-let
-;   (make-named-let 'fn
-;                   (list (cons 'a 1))
-;                   (make-if (list = 'a 5)
-;                            'done
-;                            (list 'fn (list + 'a 1)))))
-;
+(define test-named-let
+  (make-named-let 'fn
+                  (list (cons 'a 1))
+                  (make-if (list = 'a 5)
+                           'done
+                           (list 'fn (list + 'a 1)))))
+
 ; Remember that here `let` is really the quoted 'let, as are `fn`, `if`, `done`
 ; and `a`. It is just a representation of the named let form.
 ;
@@ -543,25 +543,14 @@
 ;
 ;     (let ([fn 'dummy])
 ;       (set! fn (lambda (a) (if (= a 5) 'done (fn (+ a 1)))))
-;       ((lambda (a) (if (= a 5) 'done (fn (+ a 1)))) 1)) ; done
+;       (fn 1)) ; done
 ;
 ; Since we do not have a letrec in our precarious lisp, we can leverage this
 ; construction to implement the less general named let with it, supporting a
 ; single binding that calls its body with the values as parameters.
 ;
 ; (let->combination test-named-let)
-; (let
-;   ()
+; (let ()
 ;   ((fn . dummy))
-;   ((set!
-;      fn
-;      (lambda (a)
-;        (if (#<procedure:=a 5)
-;          done
-;          (fn (#<procedure:+a 1)))))
-;    ((lambda (a)
-;       (if (#<procedure:=a 5)
-;         done
-;         (fn (#<procedure:+a 1))))
-;     (1))))
-
+;   ((set! fn (lambda (a) (if (#<procedure:=a 5) done (fn (#<procedure:+a 1)))))
+;    (fn (1))))
