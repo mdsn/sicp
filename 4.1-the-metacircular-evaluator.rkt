@@ -24,6 +24,11 @@
         ((or? exp) (eval-or exp env))
         ; 4.6
         ((let? exp) (eval (let->combination exp) env))
+        ; 4.9 To eval a while, rewrite it to a let* and evaluate that. The
+        ; evaluator evaluates that to nested lets, and evaluates that. This
+        ; evaluation rewrites the lets as combinations, and that is what gets
+        ; evaluated.
+        ((while? exp) (eval (while->let exp) env))
         (else
           (error "Unknown expression type -- EVAL" exp))))
 
@@ -487,7 +492,12 @@
 ; applications, this ought to be enough to evaluate let* forms.
 
 ; We need only a let*? predicate--the syntax is the same as that of let,
-; so its variables and body accessors will still work.
+; so its variables and body accessors will still work. For that this needs to
+; follow the shape of named-let, which is the underlying syntax of let.
+
+(define (make-let* ids body)
+  (list 'let* '() ids body))
+
 (define (let*? exp)
   (tagged-list? exp 'let*))
 
@@ -554,3 +564,69 @@
 ;   ((fn . dummy))
 ;   ((set! fn (lambda (a) (if (#<procedure:=a 5) done (fn (#<procedure:+a 1)))))
 ;    (fn (1))))
+
+; 4.9
+; A `while` form consists of a predicate that can be evaluated multiple times
+; and a body. Since it will be rewritten as a recursive procedure, we need to
+; find it a token return value. This result could be the value of the final
+; statement in the body, but to simplify this while loop will return '().
+;
+; This simple while loop
+;
+;    (while (> a 0)
+;           (set! a (- a 1)))
+;
+; Would be rewritten as
+;
+;    (let ([pred (lambda () (> a 0))]
+;          [body (lambda ()
+;                  (if (pred)
+;                    (begin (set! a (- a 1))
+;                           (body))
+;                    '()))])
+;      (body))
+;
+; This simplistic implementation runs the risk of shadowing a previous binding
+; of pred or body. But the body call is in tail position so this will not blow
+; the stack.
+
+(define (make-while pred body)
+  (list 'while pred body))
+
+(define (while? exp)
+  (tagged-list? exp 'while))
+
+(define (while-pred exp)
+  (cadr exp))
+
+(define (while-body exp)
+  (caddr exp))
+
+; (define test-while
+;   (make-while (list > 'a 0) (make-assignment 'a (list - 'a 1))))
+; (while (#<procedure:>a 0) (set! a (#<procedure:a 1)))
+
+(define (while->let exp)
+  (make-let*
+    (list
+      (cons 'pred (make-lambda '() (while-pred exp)))
+      (cons 'body
+            (make-lambda '()
+                         (make-if (make-application 'pred '())
+                                  (make-begin (list (while-body exp)
+                                                    (make-application 'pred '())))
+                                  '()))))
+    (make-application 'body '())))
+
+; (while->let test-while)
+; (let* () ([pred lambda () (#<procedure:>a 0)]
+;           [body lambda () (if (pred ())
+;                             (begin
+;                               (set! a (#<procedure:a 1))
+;                               (pred ()))
+;                             ())])
+;   (body ()))
+;
+; Because the let bindings are cons cells of a quoted symbol and a list, the
+; printer displays the entire thing as a single list. That is no problem as
+; long as the evaluator can pick the pieces apart correctly.
